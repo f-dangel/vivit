@@ -5,3 +5,6 @@
 **.out
 tex/paper/main.pdf
 **.synctex.gz
+**/auto
+**.fdb_latexmk
+**.fls
