@@ -2,7 +2,7 @@
 
 Note:
     This file is (almost) a copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/base.py#L1-L33
+    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/base.py#L1-L33 # noqa: B950
 """
 
 

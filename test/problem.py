@@ -2,7 +2,7 @@
 
 Note:
     This is (almost) an exact copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/problem.py#L1-L148
+    https://github.com/f-dangel/backpack/blob/development/test/extensions/problem.py#L1-L148 # noqa: B950
 """
 
 import copy

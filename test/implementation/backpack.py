@@ -2,7 +2,7 @@
 
 Note:
     This file is (almost) a copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/backpack.py#L1-L84
+    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/backpack.py#L1-L84 # noqa: B950
 """
 from test.implementation.base import ExtensionsImplementation
 
