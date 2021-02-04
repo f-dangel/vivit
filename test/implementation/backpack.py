@@ -8,6 +8,7 @@ from test.implementation.base import ExtensionsImplementation
 
 import backpack.extensions as new_ext
 from backpack import backpack
+from lowrank.extensions.secondorder.gram_ggn import GramGGNExact
 from lowrank.gram_grad import GramBatchGradHook
 
 
@@ -17,6 +18,13 @@ class BackpackExtensions(ExtensionsImplementation):
     def __init__(self, problem):
         problem.extend()
         super().__init__(problem)
+
+    def gram_ggn(self):
+        with backpack(GramGGNExact()):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return sum(p.gram_ggn_exact for p in self.problem.model.parameters())
 
     def gram_batch_grad(self):
         hook = GramBatchGradHook()
