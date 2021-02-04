@@ -1,0 +1,6 @@
+# Dependencies for testing lowrank
+
+coveralls
+pytest
+pytest-cov
+pytest-optional-tests

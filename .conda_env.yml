@@ -1,0 +1,12 @@
+name: lowrank
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - pip=19.3.1
+  - python=3.7.6
+  - pip:
+    - -r requirements.txt
+    # TODO
+    # - -r requirements/requirements-dev.txt
+    - -e .
