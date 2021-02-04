@@ -94,3 +94,10 @@ class GramGGN(BackpropExtension):
                 SELU: activations.GramGGNSELU(),
             },
         )
+
+
+class GramGGNExact(GramGGN):
+    def __init__(self):
+        super().__init__(
+            loss_hessian_strategy=LossHessianStrategy.EXACT, savefield="gram_ggn_exact"
+        )
