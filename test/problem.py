@@ -121,8 +121,6 @@ class ExtensionsTestProblem:
             input = self.input.clone()[sample_idx, :].unsqueeze(0).detach()
             target = self.target.clone()[sample_idx].unsqueeze(0).detach()
 
-        print(self.target.shape)
-        print(target.shape)
         output = self.model(input)
         loss = self.loss_function(output, target)
 
