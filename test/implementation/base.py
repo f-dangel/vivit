@@ -47,3 +47,7 @@ class ExtensionsImplementation:
     def diag_h(self):
         """Diagonal of Hessian"""
         raise NotImplementedError
+
+    def ggn(self):
+        """Generalized Gauss-Newton matrix."""
+        raise NotImplementedError

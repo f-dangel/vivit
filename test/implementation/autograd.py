@@ -7,8 +7,9 @@ Note:
 from test.implementation.base import ExtensionsImplementation
 
 import torch
+from torch.nn.utils.convert_parameters import parameters_to_vector
 
-from backpack.hessianfree.ggnvp import ggn_vector_product_from_plist
+from backpack.hessianfree.ggnvp import ggn_vector_product, ggn_vector_product_from_plist
 from backpack.hessianfree.rop import R_op
 from backpack.utils.convert_parameters import vector_to_parameter_list
 
@@ -137,3 +138,30 @@ class AutogradExtensions(ExtensionsImplementation):
             diag_hs.append(diag_h_p.view(p.size()))
 
         return diag_hs
+
+    def ggn(self):
+        _, output, loss = self.problem.forward_pass()
+        model = self.problem.model
+
+        num_params = sum(p.numel() for p in model.parameters())
+        ggn = torch.zeros(num_params, num_params).to(self.problem.device)
+
+        for i in range(num_params):
+            # GGN-vector product with i.th unit vector yields the i.th row
+            e_i = torch.zeros(num_params).to(self.problem.device)
+            e_i[i] = 1.0
+
+            # convert to model parameter shapes
+            e_i_list = vector_to_parameter_list(e_i, model.parameters())
+            ggn_i_list = ggn_vector_product(loss, output, model, e_i_list)
+
+            ggn_i = parameters_to_vector(ggn_i_list)
+            ggn[i, :] = ggn_i
+
+        return ggn
+
+    def diag_ggn_via_ggn(self):
+        """Compute full GGN and extract diagonal. Reshape according to param shapes."""
+        diag_ggn = self.ggn().diag()
+
+        return vector_to_parameter_list(diag_ggn, self.problem.model.parameters())
