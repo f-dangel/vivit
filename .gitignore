@@ -10,3 +10,4 @@ tex/paper/main.pdf
 **.fls
 src/
 **.egg-info
+**.mypy_cache
