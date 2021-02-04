@@ -12,6 +12,10 @@ class ExtensionsImplementation:
     def __init__(self, problem):
         self.problem = problem
 
+    def gram_batch_grad(self):
+        """Gradient gram matrix."""
+        raise NotImplementedError
+
     def batch_grad(self):
         """Individual gradients."""
         raise NotImplementedError

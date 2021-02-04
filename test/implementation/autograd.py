@@ -16,6 +16,12 @@ from backpack.utils.convert_parameters import vector_to_parameter_list
 class AutogradExtensions(ExtensionsImplementation):
     """Extension implementations with autograd."""
 
+    def gram_batch_grad(self):
+        batch_grad = self.batch_grad()
+        batch_grad_flat = torch.cat([g.flatten(start_dim=1) for g in batch_grad], dim=1)
+
+        return torch.einsum("if,jf->ij", batch_grad_flat, batch_grad_flat)
+
     def batch_grad(self):
         N = self.problem.input.shape[0]
         batch_grads = [

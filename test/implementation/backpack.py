@@ -8,6 +8,7 @@ from test.implementation.base import ExtensionsImplementation
 
 import backpack.extensions as new_ext
 from backpack import backpack
+from lowrank.gram_grad import GramBatchGradHook
 
 
 class BackpackExtensions(ExtensionsImplementation):
@@ -16,6 +17,15 @@ class BackpackExtensions(ExtensionsImplementation):
     def __init__(self, problem):
         problem.extend()
         super().__init__(problem)
+
+    def gram_batch_grad(self):
+        hook = GramBatchGradHook()
+
+        with backpack(new_ext.BatchGrad(), extension_hook=hook):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return hook.get_result()
 
     def batch_grad(self):
         with backpack(new_ext.BatchGrad()):
