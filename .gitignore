@@ -8,3 +8,5 @@ tex/paper/main.pdf
 **/auto
 **.fdb_latexmk
 **.fls
+src/
+**.egg-info
