@@ -9,13 +9,13 @@ class GramGGNBaseModule(MatToJacMat):
 
     def bias(self, ext, module, g_inp, g_out, backproped):
         sqrt_gram = self.derivatives.bias_jac_t_mat_prod(
-            module, g_inp, g_out, g_out[0], sum_batch=False
+            module, g_inp, g_out, backproped, sum_batch=False
         )
         return self.pairwise_dot(sqrt_gram)
 
     def weight(self, ext, module, g_inp, g_out, backproped):
         sqrt_gram = self.derivatives.weight_jac_t_mat_prod(
-            module, g_inp, g_out, g_out[0], sum_batch=False
+            module, g_inp, g_out, backproped, sum_batch=False
         )
         return self.pairwise_dot(sqrt_gram)
 
