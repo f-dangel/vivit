@@ -1,7 +1,7 @@
-from backpack.core.derivatives.conv_transpose1d import \
-    ConvTranspose1DDerivatives
-from lowrank.extensions.secondorder.gram_ggn.convtransposend import \
-    GramGGNConvTransposeND
+from backpack.core.derivatives.conv_transpose1d import ConvTranspose1DDerivatives
+from lowrank.extensions.secondorder.gram_ggn.convtransposend import (
+    GramGGNConvTransposeND,
+)
 
 
 class GramGGNConvTranspose1d(GramGGNConvTransposeND):

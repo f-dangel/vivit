@@ -1,11 +1,9 @@
 from functools import partial
 
-from backpack.core.derivatives.crossentropyloss import \
-    CrossEntropyLossDerivatives
+from backpack.core.derivatives.crossentropyloss import CrossEntropyLossDerivatives
 from backpack.core.derivatives.mseloss import MSELossDerivatives
 from backpack.extensions.secondorder.hbp import LossHessianStrategy
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import \
-    GramGGNBaseModule
+from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
 
 
 class GramGGNLoss(GramGGNBaseModule):

@@ -1,6 +1,5 @@
 from backpack.core.derivatives.flatten import FlattenDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import \
-    GramGGNBaseModule
+from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
 
 
 class GramGGNFlatten(GramGGNBaseModule):

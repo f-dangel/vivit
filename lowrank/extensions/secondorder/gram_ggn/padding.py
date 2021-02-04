@@ -1,6 +1,5 @@
 from backpack.core.derivatives.zeropad2d import ZeroPad2dDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import \
-    GramGGNBaseModule
+from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
 
 
 class GramGGNZeroPad2d(GramGGNBaseModule):

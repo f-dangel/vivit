@@ -5,8 +5,7 @@ from backpack.core.derivatives.relu import ReLUDerivatives
 from backpack.core.derivatives.selu import SELUDerivatives
 from backpack.core.derivatives.sigmoid import SigmoidDerivatives
 from backpack.core.derivatives.tanh import TanhDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import \
-    GramGGNBaseModule
+from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
 
 
 class GramGGNReLU(GramGGNBaseModule):

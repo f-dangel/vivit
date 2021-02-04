@@ -1,6 +1,5 @@
 from backpack.core.derivatives.linear import LinearDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import \
-    GramGGNBaseModule
+from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
 
 
 class GramGGNLinear(GramGGNBaseModule):

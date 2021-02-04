@@ -1,20 +1,50 @@
 """Gram matrix for the generalized Gauss-Newton."""
 
-from torch.nn import (ELU, SELU, AvgPool1d, AvgPool2d, AvgPool3d, Conv1d,
-                      Conv2d, Conv3d, ConvTranspose1d, ConvTranspose2d,
-                      ConvTranspose3d, CrossEntropyLoss, Dropout, Flatten,
-                      LeakyReLU, Linear, LogSigmoid, MaxPool1d, MaxPool2d,
-                      MaxPool3d, MSELoss, ReLU, Sigmoid, Tanh, ZeroPad2d)
+from torch.nn import (
+    ELU,
+    SELU,
+    AvgPool1d,
+    AvgPool2d,
+    AvgPool3d,
+    Conv1d,
+    Conv2d,
+    Conv3d,
+    ConvTranspose1d,
+    ConvTranspose2d,
+    ConvTranspose3d,
+    CrossEntropyLoss,
+    Dropout,
+    Flatten,
+    LeakyReLU,
+    Linear,
+    LogSigmoid,
+    MaxPool1d,
+    MaxPool2d,
+    MaxPool3d,
+    MSELoss,
+    ReLU,
+    Sigmoid,
+    Tanh,
+    ZeroPad2d,
+)
 
 from backpack.extensions.backprop_extension import BackpropExtension
 from backpack.extensions.secondorder.hbp import LossHessianStrategy
-from lowrank.extensions.secondorder.gram_ggn import (activations, conv1d,
-                                                     conv2d, conv3d,
-                                                     convtranspose1d,
-                                                     convtranspose2d,
-                                                     convtranspose3d, dropout,
-                                                     flatten, linear, losses,
-                                                     padding, pooling)
+from lowrank.extensions.secondorder.gram_ggn import (
+    activations,
+    conv1d,
+    conv2d,
+    conv3d,
+    convtranspose1d,
+    convtranspose2d,
+    convtranspose3d,
+    dropout,
+    flatten,
+    linear,
+    losses,
+    padding,
+    pooling,
+)
 
 
 class GramGGN(BackpropExtension):
