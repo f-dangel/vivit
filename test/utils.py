@@ -28,6 +28,15 @@ def regression_targets(size):
     return torch.rand(size=size)
 
 
+def remove_zeros(tensor, rtol=1e-5, atol=1e-8):
+    """Remove entries that are numerically close to zero."""
+    nonzero = torch.isclose(
+        tensor, torch.zeros_like(tensor), rtol=rtol, atol=atol
+    ).logical_not()
+
+    return tensor[nonzero]
+
+
 # copied from
 #    https://github.com/f-dangel/backpack/blob/development/test/automated_test.py#L60-L91  # noqa: B950
 

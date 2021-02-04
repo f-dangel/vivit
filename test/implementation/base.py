@@ -12,6 +12,10 @@ class ExtensionsImplementation:
     def __init__(self, problem):
         self.problem = problem
 
+    def cov_batch_grad(self):
+        """Gradient covariance matrix."""
+        raise NotImplementedError
+
     def gram_batch_grad(self):
         """Gradient gram matrix."""
         raise NotImplementedError
