@@ -31,3 +31,17 @@ def test_sqrt_ggn_spectrum(problem):
         filtered_ggn_evals, filtered_gram_evals, rtol=rtol, atol=atol
     )
     problem.tear_down()
+
+
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_ggn(problem):
+    """Compare full GGN computed from sqrt decomposition and via autograd."""
+    problem.set_up()
+
+    autograd_res = AutogradExtensions(problem).ggn()
+    backpack_res = BackpackExtensions(problem).ggn()
+
+    rtol, atol = 1e-5, 1e-8
+    check_sizes_and_values(autograd_res, backpack_res, rtol=rtol, atol=atol)
+
+    problem.tear_down()
