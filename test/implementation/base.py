@@ -14,6 +14,10 @@ class ExtensionsImplementation:
     def __init__(self, problem):
         self.problem = problem
 
+    def gram_sqrt_ggn(self):
+        """Generalized Gauss-Newton Gram matrix."""
+        raise NotImplementedError
+
     def sqrt_ggn(self):
         """Square root decomposition of the generalized Gauss-Newton matrix."""
         raise NotImplementedError
