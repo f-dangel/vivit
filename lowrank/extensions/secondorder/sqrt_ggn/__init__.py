@@ -53,9 +53,7 @@ class SqrtGGN(BackpropExtension):
         LossHessianStrategy.SAMPLING,
     ]
 
-    def __init__(self, loss_hessian_strategy=LossHessianStrategy.EXACT, savefield=None):
-        if savefield is None:
-            savefield = "sqrt_ggn"
+    def __init__(self, loss_hessian_strategy, savefield):
         if loss_hessian_strategy not in self.VALID_LOSS_HESSIAN_STRATEGIES:
             raise ValueError(
                 "Unknown hessian strategy: {}".format(loss_hessian_strategy)
