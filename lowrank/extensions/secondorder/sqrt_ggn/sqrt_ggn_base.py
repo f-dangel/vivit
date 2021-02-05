@@ -1,5 +1,3 @@
-import torch
-
 from backpack.extensions.mat_to_mat_jac_base import MatToJacMat
 
 
