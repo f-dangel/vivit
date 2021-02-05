@@ -12,7 +12,10 @@ import backpack.extensions as new_ext
 from backpack import backpack
 from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import GramBatchGrad
 from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact, SqrtGGNMC
-from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import GramSqrtGGNExact
+from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
+    GramSqrtGGNExact,
+    GramSqrtGGNMC,
+)
 
 
 class BackpackExtensions(ExtensionsImplementation):
@@ -21,6 +24,15 @@ class BackpackExtensions(ExtensionsImplementation):
     def __init__(self, problem):
         problem.extend()
         super().__init__(problem)
+
+    def gram_sqrt_ggn_mc(self, mc_samples):
+        hook = GramSqrtGGNMC()
+
+        with backpack(SqrtGGNMC(mc_samples=mc_samples), extension_hook=hook):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return hook.get_result()
 
     def gram_sqrt_ggn(self):
         hook = GramSqrtGGNExact()
