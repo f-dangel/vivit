@@ -1,10 +1,10 @@
 from backpack.core.derivatives.conv_transpose3d import ConvTranspose3DDerivatives
-from lowrank.extensions.secondorder.gram_ggn.convtransposend import (
-    GramGGNConvTransposeND,
+from lowrank.extensions.secondorder.sqrt_ggn.convtransposend import (
+    SqrtGGNConvTransposeND,
 )
 
 
-class GramGGNConvTranspose3d(GramGGNConvTransposeND):
+class SqrtGGNConvTranspose3d(SqrtGGNConvTransposeND):
     def __init__(self):
         super().__init__(
             derivatives=ConvTranspose3DDerivatives(),

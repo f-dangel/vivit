@@ -1,8 +1,8 @@
 from backpack.core.derivatives.conv2d import Conv2DDerivatives
-from lowrank.extensions.secondorder.gram_ggn.convnd import GramGGNConvND
+from lowrank.extensions.secondorder.sqrt_ggn.convnd import SqrtGGNConvND
 
 
-class GramGGNConv2d(GramGGNConvND):
+class SqrtGGNConv2d(SqrtGGNConvND):
     def __init__(self):
         super().__init__(
             derivatives=Conv2DDerivatives(),

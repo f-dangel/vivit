@@ -3,10 +3,10 @@ from functools import partial
 from backpack.core.derivatives.crossentropyloss import CrossEntropyLossDerivatives
 from backpack.core.derivatives.mseloss import MSELossDerivatives
 from backpack.extensions.secondorder.hbp import LossHessianStrategy
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
+from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 
-class GramGGNLoss(GramGGNBaseModule):
+class SqrtGGNLoss(SqrtGGNBaseModule):
     def backpropagate(self, ext, module, grad_inp, grad_out, backproped):
         hess_func = self.make_loss_hessian_func(ext)
 
@@ -28,11 +28,11 @@ class GramGGNLoss(GramGGNBaseModule):
             )
 
 
-class GramGGNMSELoss(GramGGNLoss):
+class SqrtGGNMSELoss(SqrtGGNLoss):
     def __init__(self):
         super().__init__(derivatives=MSELossDerivatives())
 
 
-class GramGGNCrossEntropyLoss(GramGGNLoss):
+class SqrtGGNCrossEntropyLoss(SqrtGGNLoss):
     def __init__(self):
         super().__init__(derivatives=CrossEntropyLossDerivatives())

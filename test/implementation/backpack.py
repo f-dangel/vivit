@@ -9,7 +9,7 @@ from test.implementation.base import ExtensionsImplementation
 import backpack.extensions as new_ext
 from backpack import backpack
 from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import GramBatchGrad
-from lowrank.extensions.secondorder.gram_ggn import GramGGNExact
+from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact
 
 
 class BackpackExtensions(ExtensionsImplementation):
@@ -19,12 +19,12 @@ class BackpackExtensions(ExtensionsImplementation):
         problem.extend()
         super().__init__(problem)
 
-    def gram_ggn(self):
-        with backpack(GramGGNExact()):
+    def sqrt_ggn(self):
+        with backpack(SqrtGGNExact()):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
-        return sum(p.gram_ggn_exact for p in self.problem.model.parameters())
+        return sum(p.sqrt_ggn_exact for p in self.problem.model.parameters())
 
     def gram_batch_grad(self):
         hook = GramBatchGrad()

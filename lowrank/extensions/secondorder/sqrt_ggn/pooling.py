@@ -4,34 +4,34 @@ from backpack.core.derivatives.avgpool3d import AvgPool3DDerivatives
 from backpack.core.derivatives.maxpool1d import MaxPool1DDerivatives
 from backpack.core.derivatives.maxpool2d import MaxPool2DDerivatives
 from backpack.core.derivatives.maxpool3d import MaxPool3DDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
+from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 
-class GramGGNMaxPool1d(GramGGNBaseModule):
+class SqrtGGNMaxPool1d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=MaxPool1DDerivatives())
 
 
-class GramGGNMaxPool2d(GramGGNBaseModule):
+class SqrtGGNMaxPool2d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=MaxPool2DDerivatives())
 
 
-class GramGGNAvgPool1d(GramGGNBaseModule):
+class SqrtGGNAvgPool1d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=AvgPool1DDerivatives())
 
 
-class GramGGNMaxPool3d(GramGGNBaseModule):
+class SqrtGGNMaxPool3d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=MaxPool3DDerivatives())
 
 
-class GramGGNAvgPool2d(GramGGNBaseModule):
+class SqrtGGNAvgPool2d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=AvgPool2DDerivatives())
 
 
-class GramGGNAvgPool3d(GramGGNBaseModule):
+class SqrtGGNAvgPool3d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=AvgPool3DDerivatives())

@@ -5,39 +5,39 @@ from backpack.core.derivatives.relu import ReLUDerivatives
 from backpack.core.derivatives.selu import SELUDerivatives
 from backpack.core.derivatives.sigmoid import SigmoidDerivatives
 from backpack.core.derivatives.tanh import TanhDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
+from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 
-class GramGGNReLU(GramGGNBaseModule):
+class SqrtGGNReLU(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=ReLUDerivatives())
 
 
-class GramGGNSigmoid(GramGGNBaseModule):
+class SqrtGGNSigmoid(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=SigmoidDerivatives())
 
 
-class GramGGNTanh(GramGGNBaseModule):
+class SqrtGGNTanh(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=TanhDerivatives())
 
 
-class GramGGNELU(GramGGNBaseModule):
+class SqrtGGNELU(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=ELUDerivatives())
 
 
-class GramGGNSELU(GramGGNBaseModule):
+class SqrtGGNSELU(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=SELUDerivatives())
 
 
-class GramGGNLeakyReLU(GramGGNBaseModule):
+class SqrtGGNLeakyReLU(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=LeakyReLUDerivatives())
 
 
-class GramGGNLogSigmoid(GramGGNBaseModule):
+class SqrtGGNLogSigmoid(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=LogSigmoidDerivatives())

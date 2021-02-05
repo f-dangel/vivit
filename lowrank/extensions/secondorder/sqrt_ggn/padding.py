@@ -1,7 +1,7 @@
 from backpack.core.derivatives.zeropad2d import ZeroPad2dDerivatives
-from lowrank.extensions.secondorder.gram_ggn.gram_ggn_base import GramGGNBaseModule
+from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 
-class GramGGNZeroPad2d(GramGGNBaseModule):
+class SqrtGGNZeroPad2d(SqrtGGNBaseModule):
     def __init__(self):
         super().__init__(derivatives=ZeroPad2dDerivatives())
