@@ -13,7 +13,7 @@ IDS = [problem.make_id() for problem in PROBLEMS]
 
 
 @pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
-def test_GramBatchGradHook_get_result(problem):
+def test_GramBatchGrad_get_result(problem):
     """Compare gradient Gram matrix computed with BackPACK and autodiff."""
     problem.set_up()
 
@@ -25,7 +25,7 @@ def test_GramBatchGradHook_get_result(problem):
 
 
 @pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
-def test_GramBatchGradHook_spectrum(problem):
+def test_GramBatchGrad_spectrum(problem):
     """Compare spectra of gradient Gram and gradient covariance matrix."""
     problem.set_up()
 

@@ -2,10 +2,10 @@
 
 import torch
 
-from lowrank.hook_base import ParameterHook
+from lowrank.utils.hooks import ParameterHook
 
 
-class GramBatchGradHook(ParameterHook):
+class GramBatchGrad(ParameterHook):
     """BackPACK extension hook that computes the gradient Gram matrix.
 
     Can be used as extension hook in ``with backpack(BatchGrad()):``. It is

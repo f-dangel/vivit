@@ -1,6 +1,8 @@
-"""Base classes for hooks.
+"""Utility functions and base classes for implementing extension hooks.
 
-TODO This is a copy of
+Base classes for hooks.
+
+TODO This is (partly) a copy of
     https://github.com/f-dangel/cockpit-paper/blob/hooks/backboard/quantities/hooks/base.py#L1-L100 # noqa: B950
 and should use that code once it's packaged.
 """
