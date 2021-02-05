@@ -41,7 +41,5 @@ def test_ggn(problem):
     autograd_res = AutogradExtensions(problem).ggn()
     backpack_res = BackpackExtensions(problem).ggn()
 
-    rtol, atol = 1e-5, 1e-8
-    check_sizes_and_values(autograd_res, backpack_res, rtol=rtol, atol=atol)
-
+    check_sizes_and_values(autograd_res, backpack_res)
     problem.tear_down()
