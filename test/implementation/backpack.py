@@ -10,11 +10,9 @@ import torch
 
 import backpack.extensions as new_ext
 from backpack import backpack
-from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import \
-    GramBatchGrad
+from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import GramBatchGrad
 from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact
-from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import \
-    GramSqrtGGNExact
+from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import GramSqrtGGNExact
 
 
 class BackpackExtensions(ExtensionsImplementation):
