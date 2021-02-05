@@ -95,7 +95,18 @@ class SqrtGGN(BackpropExtension):
 
 
 class SqrtGGNExact(SqrtGGN):
+    """TODO."""
+
     def __init__(self):
-        super().__init__(
-            loss_hessian_strategy=LossHessianStrategy.EXACT, savefield="sqrt_ggn_exact"
-        )
+        super().__init__(LossHessianStrategy.EXACT, "sqrt_ggn_exact")
+
+
+class SqrtGGNMC(SqrtGGN):
+    """TODO."""
+
+    def __init__(self, mc_samples=1):
+        self._mc_samples = mc_samples
+        super().__init__(LossHessianStrategy.SAMPLING, "sqrt_ggn_mc")
+
+    def get_num_mc_samples(self):
+        return self._mc_samples

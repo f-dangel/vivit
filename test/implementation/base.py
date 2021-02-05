@@ -67,3 +67,7 @@ class ExtensionsImplementation:
     def ggn(self):
         """Generalized Gauss-Newton matrix."""
         raise NotImplementedError
+
+    def ggn_mc(self, mc_samples):
+        """MC approximation of the Generalized Gauss-Newton matrix."""
+        raise NotImplementedError

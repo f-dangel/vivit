@@ -11,7 +11,7 @@ import torch
 import backpack.extensions as new_ext
 from backpack import backpack
 from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import GramBatchGrad
-from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact
+from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact, SqrtGGNMC
 from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import GramSqrtGGNExact
 
 
@@ -31,10 +31,18 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return hook.get_result()
 
+    def ggn_mc(self, mc_samples):
+        sqrt_ggn_mc = self.sqrt_ggn_mc(mc_samples)
+        return self._square_sqrt_ggn(sqrt_ggn_mc)
+
     def ggn(self):
         sqrt_ggn = self.sqrt_ggn()
-        sqrt_ggn = torch.cat([s.flatten(start_dim=2) for s in sqrt_ggn], dim=2)
+        return self._square_sqrt_ggn(sqrt_ggn)
 
+    @staticmethod
+    def _square_sqrt_ggn(sqrt_ggn):
+        """Utility function to concatenate and square the GGN factorization."""
+        sqrt_ggn = torch.cat([s.flatten(start_dim=2) for s in sqrt_ggn], dim=2)
         return torch.einsum("nci,ncj->ij", sqrt_ggn, sqrt_ggn)
 
     def sqrt_ggn(self):
@@ -43,6 +51,13 @@ class BackpackExtensions(ExtensionsImplementation):
             loss.backward()
 
         return [p.sqrt_ggn_exact for p in self.problem.model.parameters()]
+
+    def sqrt_ggn_mc(self, mc_samples):
+        with backpack(SqrtGGNMC(mc_samples=mc_samples)):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return [p.sqrt_ggn_mc for p in self.problem.model.parameters()]
 
     def gram_batch_grad(self):
         hook = GramBatchGrad()
