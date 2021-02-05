@@ -5,6 +5,8 @@ Note:
     https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/base.py#L1-L33 # noqa: B950
 """
 
+import torch
+
 
 class ExtensionsImplementation:
     """Base class for autograd and BackPACK implementations of extensions."""
@@ -16,17 +18,23 @@ class ExtensionsImplementation:
         """Square root decomposition of the generalized Gauss-Newton matrix."""
         raise NotImplementedError
 
-    def cov_batch_grad(self):
-        """Gradient covariance matrix."""
-        raise NotImplementedError
-
     def gram_batch_grad(self):
         """Gradient gram matrix."""
         raise NotImplementedError
 
+    def cov_batch_grad(self):
+        """Gradient covariance matrix."""
+        batch_grad_flat = self._batch_grad_flat()
+        return torch.einsum("ni,nj->ij", batch_grad_flat, batch_grad_flat)
+
     def batch_grad(self):
         """Individual gradients."""
         raise NotImplementedError
+
+    def _batch_grad_flat(self):
+        """Compute concatenated flattened individual gradients."""
+        batch_grad = self.batch_grad()
+        return torch.cat([g.flatten(start_dim=1) for g in batch_grad], dim=1)
 
     def batch_l2_grad(self):
         """L2 norm of Individual gradients."""
