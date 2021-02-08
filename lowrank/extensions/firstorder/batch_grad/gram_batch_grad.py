@@ -1,7 +1,6 @@
 """Interface for computing the individual gradient Gram matrix."""
 
-import torch
-
+from lowrank.utils.gram import pairwise_dot
 from lowrank.utils.hooks import ParameterHook
 
 
@@ -28,24 +27,24 @@ class GramBatchGrad(ParameterHook):
         self,
         savefield="gram_grad_batch",
         layerwise=False,
-        free_individual_gradients=False,
+        free_grad_batch=False,
     ):
         super().__init__(savefield)
 
         self._gram_mat = None
         self._layerwise = layerwise
-        self._free_individual_gradients = free_individual_gradients
+        self._free_grad_batch = free_grad_batch
 
-        self._savefield_individual_gradients = "grad_batch"
+        self._savefield_grad_batch = "grad_batch"
 
     def param_hook(self, param):
         """Compute pairwise individual gradient dot products and update Gram matrix."""
-        individual_gradients = getattr(param, self._savefield_individual_gradients)
-        gram_param = self.pairwise_dot(individual_gradients).detach()
+        grad_batch = getattr(param, self._savefield_grad_batch)
+        gram_param = pairwise_dot(grad_batch, start_dim=1).detach()
         self._update_result(gram_param)
 
-        if self._free_individual_gradients:
-            delattr(param, self._savefield_individual_gradients)
+        if self._free_grad_batch:
+            delattr(param, self._savefield_grad_batch)
 
         if self._layerwise:
             return gram_param
@@ -59,12 +58,3 @@ class GramBatchGrad(ParameterHook):
             self._gram_mat = mat
         else:
             self._gram_mat += mat
-
-    @staticmethod
-    def pairwise_dot(tensor):
-        """Compute pairwise scalar product. Pairs are determined by the leading dim."""
-        # TODO Avoid flattening with more sophisticated einsum equation
-        tensor_flat = tensor.flatten(start_dim=1)
-        equation = "if,jf->ij"
-
-        return torch.einsum(equation, tensor_flat, tensor_flat)

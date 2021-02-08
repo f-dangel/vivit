@@ -22,7 +22,7 @@ class GramSqrtGGN(ParameterHook):
     def param_hook(self, param):
         """Compute pairwise dot products of GGN square root decomposition."""
         sqrt_ggn = getattr(param, self._savefield_sqrt_ggn)
-        gram_param = pairwise_dot(sqrt_ggn).detach()
+        gram_param = pairwise_dot(sqrt_ggn, start_dim=2).detach()
         self._update_result(gram_param)
 
         if self._free_sqrt_ggn:
