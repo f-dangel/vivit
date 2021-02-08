@@ -104,7 +104,8 @@ class SqrtGGNExact(SqrtGGN):
     of classes for classification problems), ``N`` is the batch size, and ``*`` denotes
     the parameter shape.
 
-    For a faster but less precise alternative, see :py:meth:`lowrank.extensions.SqrtGGNMC`.
+    For a faster but less precise alternative, see
+    :py:meth:`lowrank.extensions.SqrtGGNMC`.
 
     Details:
 

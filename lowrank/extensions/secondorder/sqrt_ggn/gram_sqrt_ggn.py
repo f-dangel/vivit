@@ -43,6 +43,32 @@ class GramSqrtGGN(ParameterHook):
 
 
 class GramSqrtGGNExact(GramSqrtGGN):
+    """
+    BackPACK extension hook to compute the Generalized Gauss-Newton/Fisher Gram matrix.
+    Uses the exact Hessian of the loss w.r.t. the model output.
+
+    Can be used as extension hook in ``with backpack(SqrtGGNExact()):``. It is
+    obligatory that ``lowrank``'s ``SqrtGGNExact`` extension is active.
+
+    The result, a ``[CN x CN]`` tensor where ``N`` is the batch size and ``C`` is the
+    model prediction output (number of classes for classification problems), is
+    collected by calling ``get_result`` after a backward pass.
+
+    Note: Single-use only
+
+        The result buffer cannot be reset. Hence you need to create a new instance
+        every backpropagation.
+
+    Args:
+        layerwise (bool): Whether layerwise Gram matrices should be kept. Otherwise
+            they are discarded to save memory. If ``True``, a Gram matrix constructed
+            from the parameter-wise symmetric composition will be stored in
+            ``gram_sqrt_ggn_exact`` as a ``[CN x CN]`` tensor.
+        free_sqrt_ggn (bool) : Whether symmetric composition, stored by the
+            ``SqrtGGNExact`` extension should be freed during backpropagation to save
+            memory.
+    """
+
     def __init__(
         self, savefield="gram_sqrt_ggn_exact", layerwise=False, free_sqrt_ggn=False
     ):
@@ -50,6 +76,32 @@ class GramSqrtGGNExact(GramSqrtGGN):
 
 
 class GramSqrtGGNMC(GramSqrtGGN):
+    """
+    BackPACK extension hook to compute the Generalized Gauss-Newton/Fisher Gram matrix.
+    Uses a Monte-Carlo approximation of the Hessian of the loss w.r.t. the model output.
+
+    Can be used as extension hook in ``with backpack(SqrtGGNMC()):``. It is
+    obligatory that ``lowrank``'s ``SqrtGGNMC`` extension is active.
+
+    The result, a ``[MN x MN]`` tensor where ``N`` is the batch size and ``M`` is the
+    number of Monte-Carlo samples used by the ``SqrtGGNMC`` extension, is
+    collected by calling ``get_result`` after a backward pass.
+
+    Note: Single-use only
+
+        The result buffer cannot be reset. Hence you need to create a new instance
+        every backpropagation.
+
+    Args:
+        layerwise (bool): Whether layerwise Gram matrices should be kept. Otherwise
+            they are discarded to save memory. If ``True``, a Gram matrix constructed
+            from the parameter-wise symmetric composition will be stored in
+            ``gram_sqrt_ggn_mc`` as a ``[MN x MN]`` tensor.
+        free_sqrt_ggn (bool) : Whether symmetric composition, stored by the
+            ``SqrtGGNMC`` extension should be freed during backpropagation to save
+            memory.
+    """
+
     def __init__(
         self, savefield="gram_sqrt_ggn_mc", layerwise=False, free_sqrt_ggn=False
     ):

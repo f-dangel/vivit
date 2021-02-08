@@ -10,8 +10,8 @@ class GramBatchGrad(ParameterHook):
     Can be used as extension hook in ``with backpack(BatchGrad()):``. It is
     obligatory that ``backpack``'s ``BatchGrad`` extension is active.
 
-    The result, an ``[N x N]`` tensor, is collected by calling ``get_result``
-    after a backward pass.
+    The result, an ``[N x N]`` tensor where ``N`` is the batch size, is
+    collected by calling ``get_result`` after a backward pass.
 
     Note: Single-use only
 
@@ -42,7 +42,7 @@ class GramBatchGrad(ParameterHook):
         layerwise (bool): Whether layerwise Gram matrices should be kept. Otherwise
             they are discarded to save memory. If ``True``, a Gram matrix constructed
             from the parameter-wise individual gradients will be stored in
-            ``grad_grad_batch`` as an ``[N x N]`` tensor.
+            ``gram_grad_batch`` as an ``[N x N]`` tensor.
         free_grad_batch (bool) : Whether individual gradients, stored by the
             ``BatchGrad`` extension should be freed during backpropagation to save
             memory.
