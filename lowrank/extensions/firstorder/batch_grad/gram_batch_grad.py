@@ -10,17 +10,42 @@ class GramBatchGrad(ParameterHook):
     Can be used as extension hook in ``with backpack(BatchGrad()):``. It is
     obligatory that ``backpack``'s ``BatchGrad`` extension is active.
 
-    Note:
-        BackPACK computes individual gradients with a potential factor stemming
-        from the loss function's ``reduction`` argument, the result differs by the
-        actual gram matrix by a factor of ``1 / N ** 2`` (reduction mean) or by
-        ``1 / N`` (reduction sum).
+    The result, an ``[N x N]`` tensor, is collected by calling ``get_result``
+    after a backward pass.
+
+    Note: Single-use only
+
+        The result buffer cannot be reset. Hence you need to create a new instance
+        every backpropagation.
+
+    Note: beware of scaling issue
+
+        BackPACK computes individual gradients with a scaling factor stemming
+        from the loss function's ``reduction`` argument.
+
+        Let ``fᵢ`` be the loss of the ``i`` th sample, with gradient ``gᵢ``.
+        The individual gradients computed by BackPACK are
+
+        - ``[g₁, …, gₙ]`` if the loss is a sum, ``∑ᵢ₌₁ⁿ fᵢ``,
+        - ``[¹/ₙ g₁, …, ¹/ₙ gₙ]`` if the loss is a mean, ``¹/ₙ ∑ᵢ₌₁ⁿ fᵢ``.
+
+        The quantity computed by this hook is a matrix containing pairwise scalar
+        products of those vectors, i.e. it has elements
+
+        - ``⟨gᵢ, gⱼ⟩`` if the loss is a sum, ``∑ᵢ₌₁ⁿ fᵢ``,
+        - ``⟨¹/ₙ gᵢ, ¹/ₙ gⱼ⟩`` if the loss is a mean, ``¹/ₙ ∑ᵢ₌₁ⁿ fᵢ``.
+
+        This must be kept in mind as the object of interest is often given by a matrix
+        with elements ``1/ₙ ⟨gᵢ, gⱼ⟩``.
 
     Args:
         layerwise (bool): Whether layerwise Gram matrices should be kept. Otherwise
-            they are discarded to save memory.
-        free_individual_gradients (bool) : Whether individual gradients should be freed
-            during backpropagation to save memory.
+            they are discarded to save memory. If ``True``, a Gram matrix constructed
+            from the parameter-wise individual gradients will be stored in
+            ``grad_grad_batch`` as an ``[N x N]`` tensor.
+        free_grad_batch (bool) : Whether individual gradients, stored by the
+            ``BatchGrad`` extension should be freed during backpropagation to save
+            memory.
     """
 
     _SAVEFIELD_GRAD_BATCH = "grad_batch"
