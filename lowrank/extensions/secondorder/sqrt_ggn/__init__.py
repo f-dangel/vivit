@@ -95,14 +95,42 @@ class SqrtGGN(BackpropExtension):
 
 
 class SqrtGGNExact(SqrtGGN):
-    """TODO."""
+    """
+    Symmetric composition of the Generalized Gauss-Newton/Fisher.
+    Uses the exact Hessian of the loss w.r.t. the model output.
+
+    Stores the output in :code:`sqrt_ggn_exact`,
+    has the dimensions ``[C, N, *]``, where ``C`` is the model output dimension (number
+    of classes for classification problems), ``N`` is the batch size, and ``*`` denotes
+    the parameter shape.
+
+    For a faster but less precise alternative, see :py:meth:`lowrank.extensions.SqrtGGNMC`.
+
+    Details:
+
+        The ``[CN, *]`` matrix view ``V`` of :code:`sqrt_ggn_exact` is the symmetric
+        factorization of the exact parameter GGN, i.e. ``G(θ) = Vᵀ V``.
+    """
 
     def __init__(self):
         super().__init__(LossHessianStrategy.EXACT, "sqrt_ggn_exact")
 
 
 class SqrtGGNMC(SqrtGGN):
-    """TODO."""
+    """
+    Symmetric composition of the Generalized Gauss-Newton/Fisher.
+    Uses a Monte-Carlo approximation of the Hessian of the loss w.r.t. the model output.
+
+    Stores the output in :code:`sqrt_ggn_mc`,
+    has the dimensions ``[C, N, *]``, where ``C`` is the model output dimension (number
+    of classes for classification problems), ``N`` is the batch size, and ``*`` denotes
+    the parameter shape.
+
+    Details:
+
+        The ``[CN, *]`` matrix view ``V`` of :code:`sqrt_ggn_mc` is the symmetric
+        factorization of the approximate parameter GGN, i.e. ``G(θ) ≈ Vᵀ V``.
+    """
 
     def __init__(self, mc_samples=1):
         self._mc_samples = mc_samples
