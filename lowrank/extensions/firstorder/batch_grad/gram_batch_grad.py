@@ -23,6 +23,8 @@ class GramBatchGrad(ParameterHook):
             during backpropagation to save memory.
     """
 
+    _SAVEFIELD_GRAD_BATCH = "grad_batch"
+
     def __init__(
         self,
         savefield="gram_grad_batch",
@@ -35,16 +37,14 @@ class GramBatchGrad(ParameterHook):
         self._layerwise = layerwise
         self._free_grad_batch = free_grad_batch
 
-        self._savefield_grad_batch = "grad_batch"
-
     def param_hook(self, param):
         """Compute pairwise individual gradient dot products and update Gram matrix."""
-        grad_batch = getattr(param, self._savefield_grad_batch)
+        grad_batch = getattr(param, self._SAVEFIELD_GRAD_BATCH)
         gram_param = pairwise_dot(grad_batch, start_dim=1).detach()
         self._update_result(gram_param)
 
         if self._free_grad_batch:
-            delattr(param, self._savefield_grad_batch)
+            delattr(param, self._SAVEFIELD_GRAD_BATCH)
 
         if self._layerwise:
             return gram_param
