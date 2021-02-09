@@ -62,3 +62,44 @@ def test_gram_sqrt_ggn_mc_spectrum(problem, mc_samples):
     check_sizes_and_values(
         filtered_ggn_evals, filtered_gram_evals, rtol=rtol, atol=atol
     )
+
+
+FREE_SQRT_GGN = [True, False]
+FREE_SQRT_GGN_IDS = [f"free_sqrt_ggn={f}" for f in FREE_SQRT_GGN]
+
+
+@pytest.mark.parametrize("free_sqrt_ggn", FREE_SQRT_GGN, ids=FREE_SQRT_GGN_IDS)
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_GramSqrtGGNExact_free_sqrt_ggn(problem, free_sqrt_ggn):
+    """Check that ``sqrt_ggn_exact`` is deleted if enabled."""
+    problem.set_up()
+
+    BackpackExtensions(problem).gram_sqrt_ggn(free_sqrt_ggn=free_sqrt_ggn)
+
+    for p in problem.model.parameters():
+        if free_sqrt_ggn:
+            assert not hasattr(p, "sqrt_ggn_exact")
+        else:
+            assert hasattr(p, "sqrt_ggn_exact")
+
+    problem.tear_down()
+
+
+@pytest.mark.parametrize("free_sqrt_ggn", FREE_SQRT_GGN, ids=FREE_SQRT_GGN_IDS)
+@pytest.mark.parametrize("mc_samples", MC_SAMPLES, ids=MC_SAMPLES_IDS)
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_GramSqrtGGNMC_free_sqrt_ggn(problem, mc_samples, free_sqrt_ggn):
+    """Check that ``sqrt_ggn_mc`` is deleted if enabled."""
+    problem.set_up()
+
+    BackpackExtensions(problem).gram_sqrt_ggn_mc(
+        mc_samples, free_sqrt_ggn=free_sqrt_ggn
+    )
+
+    for p in problem.model.parameters():
+        if free_sqrt_ggn:
+            assert not hasattr(p, "sqrt_ggn_mc")
+        else:
+            assert hasattr(p, "sqrt_ggn_mc")
+
+    problem.tear_down()

@@ -25,8 +25,8 @@ class BackpackExtensions(ExtensionsImplementation):
         problem.extend()
         super().__init__(problem)
 
-    def gram_sqrt_ggn_mc(self, mc_samples):
-        hook = GramSqrtGGNMC()
+    def gram_sqrt_ggn_mc(self, mc_samples, layerwise=False, free_sqrt_ggn=False):
+        hook = GramSqrtGGNMC(layerwise=layerwise, free_sqrt_ggn=free_sqrt_ggn)
 
         with backpack(SqrtGGNMC(mc_samples=mc_samples), extension_hook=hook):
             _, _, loss = self.problem.forward_pass()
@@ -34,8 +34,8 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return hook.get_result()
 
-    def gram_sqrt_ggn(self):
-        hook = GramSqrtGGNExact()
+    def gram_sqrt_ggn(self, layerwise=False, free_sqrt_ggn=False):
+        hook = GramSqrtGGNExact(layerwise=layerwise, free_sqrt_ggn=free_sqrt_ggn)
 
         with backpack(SqrtGGNExact(), extension_hook=hook):
             _, _, loss = self.problem.forward_pass()
@@ -71,8 +71,8 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return [p.sqrt_ggn_mc for p in self.problem.model.parameters()]
 
-    def gram_batch_grad(self):
-        hook = GramBatchGrad()
+    def gram_batch_grad(self, layerwise=False, free_grad_batch=False):
+        hook = GramBatchGrad(layerwise=layerwise, free_grad_batch=free_grad_batch)
 
         with backpack(new_ext.BatchGrad(), extension_hook=hook):
             _, _, loss = self.problem.forward_pass()
