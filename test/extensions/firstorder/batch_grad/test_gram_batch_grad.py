@@ -48,19 +48,32 @@ def test_GramBatchGrad_spectrum(problem):
 FREE_GRAD_BATCH = [True, False]
 FREE_GRAD_BATCH_IDS = [f"free_grad_batch={f}" for f in FREE_GRAD_BATCH]
 
+LAYERWISE = [True, False]
+LAYERWISE_IDS = [f"layerwise={f}" for f in LAYERWISE]
+
 
 @pytest.mark.parametrize("free_grad_batch", FREE_GRAD_BATCH, ids=FREE_GRAD_BATCH_IDS)
+@pytest.mark.parametrize("layerwise", LAYERWISE, ids=LAYERWISE_IDS)
 @pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
-def test_GramBatchGrad_free_grad_batch(problem, free_grad_batch):
-    """Check that ``grad_batch`` is deleted if enabled."""
+def test_GramBatchGrad_free_grad_batch_and_layerwise(
+    problem, layerwise, free_grad_batch
+):
+    """Check that ``grad_batch`` and layerwise matrices are deleted if enabled."""
     problem.set_up()
 
-    BackpackExtensions(problem).gram_batch_grad(free_grad_batch=free_grad_batch)
+    BackpackExtensions(problem).gram_batch_grad(
+        layerwise=layerwise, free_grad_batch=free_grad_batch
+    )
 
     for p in problem.model.parameters():
         if free_grad_batch:
             assert not hasattr(p, GramBatchGrad._SAVEFIELD_GRAD_BATCH)
         else:
             assert hasattr(p, GramBatchGrad._SAVEFIELD_GRAD_BATCH)
+
+        if layerwise:
+            assert p.gram_grad_batch is not None
+        else:
+            assert p.gram_grad_batch is None
 
     problem.tear_down()
