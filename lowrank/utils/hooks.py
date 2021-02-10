@@ -105,3 +105,54 @@ class ParameterHook(ModuleHook):
             ``self.savefield``.
         """
         return self.param_hook(param)
+
+
+class ExtensionHookManager:
+    """Manages execution of multiple hooks during one backpropagation.
+
+    This file is (almost) a copy of
+        https://github.com/f-dangel/cockpit-paper/blob/hooks/backboard/hook_manager.py#L1-L50  # noqa: B950
+    """
+
+    def __init__(self, *hooks):
+        """Store parameter hooks.
+
+        Args:
+            hooks (list(callable)): List of functions that accept a tensor and perform
+                a side effect. The signature is ``torch.Tensor -> None``.
+        """
+        self.hooks = self._remove_duplicates(hooks)
+
+    def _remove_duplicates(self, hooks):
+        """Remove hook instances from the same class."""
+        self._check(hooks)
+
+        hook_cls = set()
+        filtered = []
+
+        for hook in hooks:
+            if hook.__class__ not in hook_cls:
+                filtered.append(hook)
+                hook_cls.add(hook.__class__)
+
+        return filtered
+
+    @staticmethod
+    def _check(hooks):
+        for hook in hooks:
+            if not isinstance(hook, (ModuleHook, ParameterHook)):
+                raise ValueError(
+                    f"Hooks must be 'Module/ParameterHook' instances . Got {hook}"
+                )
+
+    def __call__(self, module):
+        """Apply every hook to the module parameters. Skip if already performed.
+
+        This function is handed to the ``backpack`` context manager.
+
+        Args:
+            module (torch.nn.Module): The neural network layer that all parameter
+                hooks will be applied to.
+        """
+        for hook in self.hooks:
+            hook(module)

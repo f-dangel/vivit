@@ -5,9 +5,11 @@ from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
     GramSqrtGGNExact,
     GramSqrtGGNMC,
 )
+from lowrank.utils.hooks import ExtensionHookManager
 
 __all__ = [
     "GramBatchGrad",
     "GramSqrtGGNExact",
     "GramSqrtGGNMC",
+    "ExtensionHookManager",
 ]
