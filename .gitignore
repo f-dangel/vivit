@@ -13,3 +13,5 @@ src/
 **.mypy_cache
 **__pycache__
 .coverage
+**/MNIST
+exp/exp01_mnist_cnn_spectra/fig
