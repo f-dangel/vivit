@@ -1,0 +1,49 @@
+This document explains the directory structure and development workflow.
+
+* How to get started
+
+1. Clone the repository
+
+2. Set up a virtual environment to install the required dependencies into. It is assumed you have [[https://docs.anaconda.com/anaconda/install/][anaconda]] installed.
+
+3. Set up the virtual environment
+
+   #+begin_src bash
+     make conda-env
+   #+end_src
+
+4. Every time you work on the project, activate this environment
+
+   #+begin_src bash
+     conda activate lowrank
+   #+end_src
+
+   (there exist tools to automate this, for example [[https://direnv.net/][direnv]])
+
+* Workflow
+
+** Development
+
+Everything is handled through the [[file:makefile][ =makefile= ]]. You can type =make= into the command line at the repository's root to see a help menu. Examples are:
+
+- Running tests
+
+- Running checks, like syntax and formatting
+
+- Setting up =conda= environments (see above)
+
+* Directory structure
+
+- =lowrank= :: Main library containing the numerical tricks.
+
+- =requirements= :: Development tools dependencies for the main library.
+
+- =test= :: Tests for the =lowrank= library.
+
+- =exp= :: Experiments for the paper. They should be documented for a third party. I.e., how to run an experiment, generate plots, and how to reuse the original data.
+
+  Folders inside =exp= are labeled =exp/exp01_<name of experiment 1>=,  =exp/exp02_<name of experiment 2>=, etc. They often contain a =run.py=, =plot.py=, and =clean.sh=, together with a =README.{org,md}= file for documentation.
+
+- =fig= :: Figures for the paper. These are generally created from =python= scripts in =exp=. Subfolders should be named consistently with the experiment names.
+
+- =tex= :: LaTeX documents, such as paper drafts, talk slides, etc. Usually import figures from =fig=.

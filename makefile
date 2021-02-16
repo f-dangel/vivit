@@ -5,6 +5,8 @@ help:
 	@echo "        Install lowrank and dependencies"
 	@echo "uninstall"
 	@echo "        Unstall lowrank"
+	@echo "install-dev"
+	@echo "        Install only the development tools"
 	@echo "install-test"
 	@echo "        Install only the testing tools (included in install-dev)"
 	@echo "test"
@@ -36,6 +38,13 @@ install:
 
 uninstall:
 	@pip uninstall lowrank
+
+
+.PHONY: install-dev
+
+install-dev:
+	@make install-test
+	@make install-lint
 
 .PHONY: install-test
 
