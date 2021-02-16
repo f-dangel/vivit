@@ -7,6 +7,6 @@ dependencies:
   - python=3.7.6
   - pip:
     - -r requirements.txt
-    # TODO
-    # - -r requirements/requirements-dev.txt
+    - -r requirements-dev.txt
+    - -r exp/requirements-exp.txt
     - -e .
