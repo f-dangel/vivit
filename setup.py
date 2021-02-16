@@ -3,7 +3,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    author="Felix Dangel",
+    author="Felix Dangel, Lukas Tatzel",
     name="lowrank",
     version="0.0.1",
     description="Use low-rank structure mini-batch covariance matrices",
