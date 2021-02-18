@@ -5,6 +5,25 @@ from lowrank.utils.hooks import ParameterHook
 
 
 class _GramBatchGradBase(ParameterHook):
+    """Base class for Gram matrices based on individual gradients.
+
+    Note: Single-use only
+
+        The result buffer cannot be reset. Hence you need to create a new instance
+        every backpropagation.
+
+    Args:
+        center (bool): Whether to center the individual gradients before computing
+            pairwise scalar products.
+        layerwise (bool): Whether layerwise Gram matrices should be kept. Otherwise
+            they are discarded to save memory. If ``True``, a Gram matrix constructed
+            from the parameter-wise individual gradients will be stored in
+            ``savefield`` as an ``[N x N]`` tensor.
+        free_grad_batch (bool) : Whether individual gradients, stored by the
+            ``BatchGrad`` extension should be freed during backpropagation to save
+            memory.
+    """
+
     _SAVEFIELD_GRAD_BATCH = "grad_batch"
 
     def __init__(
@@ -14,19 +33,6 @@ class _GramBatchGradBase(ParameterHook):
         layerwise=False,
         free_grad_batch=False,
     ):
-        """Base class for Gram matrices based on individual gradients.
-
-        Args:
-            center (bool): Whether to center the individual gradients before computing
-                pairwise scalar products.
-            layerwise (bool): Whether layerwise Gram matrices should be kept. Otherwise
-                they are discarded to save memory. If ``True``, a Gram matrix constructed
-                from the parameter-wise individual gradients will be stored in
-                ``savefield`` as an ``[N x N]`` tensor.
-            free_grad_batch (bool) : Whether individual gradients, stored by the
-                ``BatchGrad`` extension should be freed during backpropagation to save
-                memory.
-        """
         super().__init__(savefield)
 
         self._center = center
@@ -37,7 +43,8 @@ class _GramBatchGradBase(ParameterHook):
     def param_hook(self, param):
         """Compute pairwise individual gradient dot products and update Gram matrix.
 
-        Optionally center individual gradients before the scalar product.
+        Optionally center individual gradients before the scalar product, depending
+        on ``self._center``.
         """
         grad_batch = getattr(param, self._SAVEFIELD_GRAD_BATCH)
 
@@ -73,11 +80,6 @@ class GramBatchGrad(_GramBatchGradBase):
     The result, an ``[N x N]`` tensor where ``N`` is the batch size, is
     collected by calling ``get_result`` after a backward pass.
 
-    Note: Single-use only
-
-        The result buffer cannot be reset. Hence you need to create a new instance
-        every backpropagation.
-
     Note: beware of scaling issue
 
         BackPACK computes individual gradients with a scaling factor stemming
@@ -107,6 +109,55 @@ class GramBatchGrad(_GramBatchGradBase):
         free_grad_batch=False,
     ):
         center = False
+
+        super().__init__(
+            savefield,
+            center,
+            layerwise=layerwise,
+            free_grad_batch=free_grad_batch,
+        )
+
+
+class CenteredGramBatchGrad(_GramBatchGradBase):
+    """BackPACK extension hook that computes the centered gradient Gram matrix.
+
+    Can be used as extension hook in ``with backpack(BatchGrad()):``. It is
+    obligatory that ``backpack``'s ``BatchGrad`` extension is active.
+
+    The result, an ``[N x N]`` tensor where ``N`` is the batch size, is
+    collected by calling ``get_result`` after a backward pass.
+
+    Note: beware of scaling issue
+
+        BackPACK computes individual gradients with a scaling factor stemming
+        from the loss function's ``reduction`` argument.
+
+        Let ``fᵢ`` be the loss of the ``i`` th sample, with gradient ``gᵢ``.
+        The individual gradients computed by BackPACK are
+
+        - ``[g₁, …, gₙ]`` if the loss is a sum, ``∑ᵢ₌₁ⁿ fᵢ``,
+        - ``[¹/ₙ g₁, …, ¹/ₙ gₙ]`` if the loss is a mean, ``¹/ₙ ∑ᵢ₌₁ⁿ fᵢ``.
+
+        The quantity computed by this hook is a matrix containing pairwise scalar
+        products of those vectors, i.e. it has elements
+
+        - ``⟨gᵢ - (¹/ₙ ∑ₗ₌₁ⁿ gₗ) , gⱼ - (¹/ₙ ∑ₗ₌₁ⁿ gₗ)⟩`` if the loss is a sum,
+          ``∑ᵢ₌₁ⁿ fᵢ``,
+        - ``⟨¹/ₙ (gᵢ - (¹/ₙ ∑ₗ₌₁ⁿ gₗ)), ¹/ₙ (gⱼ- (¹/ₙ ∑ₗ₌₁ⁿ gₗ))⟩`` if the loss is a
+          mean, ``¹/ₙ ∑ᵢ₌₁ⁿ fᵢ``.
+
+        This must be kept in mind as the object of interest is often given by a matrix
+        with elements ``1/ₙ ⟨gᵢ - (¹/ₙ ∑ₗ₌₁ⁿ gₗ), gⱼ - (¹/ₙ ∑ₗ₌₁ⁿ gₗ)⟩``.
+
+    """
+
+    def __init__(
+        self,
+        savefield="centered_gram_grad_batch",
+        layerwise=False,
+        free_grad_batch=False,
+    ):
+        center = True
 
         super().__init__(
             savefield,
