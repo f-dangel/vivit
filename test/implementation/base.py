@@ -22,13 +22,23 @@ class ExtensionsImplementation:
         """Square root decomposition of the generalized Gauss-Newton matrix."""
         raise NotImplementedError
 
+    def centered_gram_batch_grad(self):
+        """Centered gradient gram matrix."""
+        raise NotImplementedError
+
     def gram_batch_grad(self):
-        """Gradient gram matrix."""
+        """Uncentered gradient gram matrix."""
         raise NotImplementedError
 
     def cov_batch_grad(self):
-        """Gradient covariance matrix."""
+        """Uncentered gradient covariance matrix."""
         batch_grad_flat = self._batch_grad_flat()
+        return torch.einsum("ni,nj->ij", batch_grad_flat, batch_grad_flat)
+
+    def centered_cov_batch_grad(self):
+        """Centered gradient covariance matrix."""
+        batch_grad_flat = self._batch_grad_flat()
+        batch_grad_flat -= batch_grad_flat.mean(0)
         return torch.einsum("ni,nj->ij", batch_grad_flat, batch_grad_flat)
 
     def batch_grad(self):

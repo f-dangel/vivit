@@ -10,7 +10,10 @@ import torch
 
 import backpack.extensions as new_ext
 from backpack import backpack
-from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import GramBatchGrad
+from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
+    CenteredGramBatchGrad,
+    GramBatchGrad,
+)
 from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact, SqrtGGNMC
 from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
     GramSqrtGGNExact,
@@ -70,6 +73,17 @@ class BackpackExtensions(ExtensionsImplementation):
             loss.backward()
 
         return [p.sqrt_ggn_mc for p in self.problem.model.parameters()]
+
+    def centered_gram_batch_grad(self, layerwise=False, free_grad_batch=False):
+        hook = CenteredGramBatchGrad(
+            layerwise=layerwise, free_grad_batch=free_grad_batch
+        )
+
+        with backpack(new_ext.BatchGrad(), extension_hook=hook):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return hook.get_result()
 
     def gram_batch_grad(self, layerwise=False, free_grad_batch=False):
         hook = GramBatchGrad(layerwise=layerwise, free_grad_batch=free_grad_batch)

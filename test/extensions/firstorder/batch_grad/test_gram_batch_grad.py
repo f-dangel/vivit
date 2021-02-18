@@ -8,7 +8,10 @@ from test.utils import check_sizes_and_values, remove_zeros
 
 import pytest
 
-from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import GramBatchGrad
+from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
+    CenteredGramBatchGrad,
+    GramBatchGrad,
+)
 
 PROBLEMS = make_test_problems(SETTINGS)
 IDS = [problem.make_id() for problem in PROBLEMS]
@@ -16,7 +19,7 @@ IDS = [problem.make_id() for problem in PROBLEMS]
 
 @pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
 def test_GramBatchGrad_get_result(problem):
-    """Compare gradient Gram matrix computed with BackPACK and autodiff."""
+    """Compare uncentered gradient Gram matrix computed with BackPACK and autodiff."""
     problem.set_up()
 
     backpack_res = BackpackExtensions(problem).gram_batch_grad()
@@ -28,7 +31,7 @@ def test_GramBatchGrad_get_result(problem):
 
 @pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
 def test_GramBatchGrad_spectrum(problem):
-    """Compare spectra of gradient Gram and gradient covariance matrix."""
+    """Compare spectra of uncentered gradient Gram and gradient covariance matrix."""
     problem.set_up()
 
     cov_mat = AutogradExtensions(problem).cov_batch_grad()
@@ -44,6 +47,41 @@ def test_GramBatchGrad_spectrum(problem):
     check_sizes_and_values(filtered_cov_evals, filtered_gram_evals)
     problem.tear_down()
 
+
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_CenteredGramBatchGrad_get_result(problem):
+    """Compare centered gradient Gram matrix computed with BackPACK and autodiff."""
+    problem.set_up()
+
+    backpack_res = BackpackExtensions(problem).centered_gram_batch_grad()
+    autograd_res = AutogradExtensions(problem).centered_gram_batch_grad()
+
+    check_sizes_and_values(backpack_res, autograd_res)
+    problem.tear_down()
+
+
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_CenteredGramBatchGrad_spectrum(problem):
+    """Compare spectra of centered gradient Gram and gradient covariance matrix."""
+    problem.set_up()
+
+    cov_mat = AutogradExtensions(problem).centered_cov_batch_grad()
+    gram_mat = BackpackExtensions(problem).centered_gram_batch_grad()
+
+    cov_evals, _ = cov_mat.symeig()
+    gram_evals, _ = gram_mat.symeig()
+
+    rtol, atol = 1e-5, 1e-6
+    filtered_cov_evals = remove_zeros(cov_evals, rtol=rtol, atol=atol)
+    filtered_gram_evals = remove_zeros(gram_evals, rtol=rtol, atol=atol)
+
+    check_sizes_and_values(filtered_cov_evals, filtered_gram_evals)
+    problem.tear_down()
+
+
+###############################################################################
+#                            Keyword argument tests                           #
+###############################################################################
 
 FREE_GRAD_BATCH = [True, False]
 FREE_GRAD_BATCH_IDS = [f"free_grad_batch={f}" for f in FREE_GRAD_BATCH]
@@ -65,15 +103,54 @@ def test_GramBatchGrad_free_grad_batch_and_layerwise(
         layerwise=layerwise, free_grad_batch=free_grad_batch
     )
 
-    for p in problem.model.parameters():
-        if free_grad_batch:
-            assert not hasattr(p, GramBatchGrad._SAVEFIELD_GRAD_BATCH)
-        else:
-            assert hasattr(p, GramBatchGrad._SAVEFIELD_GRAD_BATCH)
-
-        if layerwise:
-            assert p.gram_grad_batch is not None
-        else:
-            assert p.gram_grad_batch is None
+    _check_grad_batch_and_layerwise_freed(
+        problem,
+        free_grad_batch,
+        layerwise,
+        GramBatchGrad._SAVEFIELD_GRAD_BATCH,
+        "gram_grad_batch",
+    )
 
     problem.tear_down()
+
+
+@pytest.mark.parametrize("free_grad_batch", FREE_GRAD_BATCH, ids=FREE_GRAD_BATCH_IDS)
+@pytest.mark.parametrize("layerwise", LAYERWISE, ids=LAYERWISE_IDS)
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_CenteredGramBatchGrad_free_grad_batch_and_layerwise(
+    problem, layerwise, free_grad_batch
+):
+    """Check that ``grad_batch`` and layerwise matrices are deleted if enabled."""
+    problem.set_up()
+
+    BackpackExtensions(problem).centered_gram_batch_grad(
+        layerwise=layerwise, free_grad_batch=free_grad_batch
+    )
+    _check_grad_batch_and_layerwise_freed(
+        problem,
+        free_grad_batch,
+        layerwise,
+        CenteredGramBatchGrad._SAVEFIELD_GRAD_BATCH,
+        "centered_gram_grad_batch",
+    )
+
+    problem.tear_down()
+
+
+def _check_grad_batch_and_layerwise_freed(
+    problem, free_grad_batch, layerwise, savefield_batch_grad, savefield_result
+):
+    """Verify layerwise results and ``grad_batch`` buffers were deleted if desired."""
+    # buffers freed
+    for p in problem.model.parameters():
+        if free_grad_batch:
+            assert not hasattr(p, savefield_batch_grad)
+        else:
+            assert hasattr(p, savefield_batch_grad)
+
+    # layerwise results freed
+    for p in problem.model.parameters():
+        if layerwise:
+            assert getattr(p, savefield_result) is not None
+        else:
+            assert getattr(p, savefield_result) is None
