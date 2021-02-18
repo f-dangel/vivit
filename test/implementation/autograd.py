@@ -17,6 +17,11 @@ from backpack.utils.convert_parameters import vector_to_parameter_list
 class AutogradExtensions(ExtensionsImplementation):
     """Extension implementations with autograd."""
 
+    def centered_gram_batch_grad(self):
+        batch_grad_flat = self._batch_grad_flat()
+        batch_grad_flat -= batch_grad_flat.mean(0)
+        return torch.einsum("if,jf->ij", batch_grad_flat, batch_grad_flat)
+
     def gram_batch_grad(self):
         batch_grad_flat = self._batch_grad_flat()
         return torch.einsum("if,jf->ij", batch_grad_flat, batch_grad_flat)
