@@ -1,11 +1,12 @@
 """Utility functions to compute gram matrices."""
 
+import numpy
 import torch
 
 
 def pairwise_dot(tensor, start_dim=1):
     """Compute pairwise scalar product. Pairs are determined by ``start_dim``."""
-    out_dim = int(torch.prod(torch.Tensor(tuple(tensor.shape[:start_dim]))))
+    out_dim = numpy.prod(tensor.shape[:start_dim])
     out_shape = (out_dim, out_dim)
 
     # build einsum equation
