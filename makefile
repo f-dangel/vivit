@@ -13,6 +13,8 @@ help:
 	@echo "        Run pytest on test and report coverage"
 	@echo "test-light"
 	@echo "        Run pytest on the light part of test and report coverage"
+	@echo "examples"
+	@echo "        Run the examples"
 	@echo "install-lint"
 	@echo "        Install only the linter tools (included in install-dev)"
 	@echo "black"
@@ -58,6 +60,11 @@ test:
 
 test-light:
 	@pytest -vx --cov=lowrank test
+
+.PHONY: examples
+
+examples:
+	@python exp/examples/gradient_covariance.py
 
 .PHONY: install-lint
 
