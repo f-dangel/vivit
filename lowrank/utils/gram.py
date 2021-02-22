@@ -64,7 +64,7 @@ def reshape_as_square(tensor):
     return tensor.reshape(dim, dim)
 
 
-def compute_gram(parameters, savefield, start_dim, flatten=True):
+def compute_gram_mat(parameters, savefield, start_dim, flatten=True):
     """Compute the Gram matrix from a BackPACK quantity.
 
     Fetches the quantity in ``savefield`` and computes pairwise scalar products.
