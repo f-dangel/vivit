@@ -74,6 +74,18 @@ def test_CenteredGramBatchGrad_spectrum(problem):
     problem.tear_down()
 
 
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_CenteredBatchGrad(problem):
+    """Compare centered individual gradients computed by BackPACK with autograd."""
+    problem.set_up()
+
+    autograd_res = AutogradExtensions(problem).centered_batch_grad()
+    backpack_res = BackpackExtensions(problem).centered_batch_grad()
+
+    check_sizes_and_values(autograd_res, backpack_res)
+    problem.tear_down()
+
+
 ###############################################################################
 #                            Keyword argument tests                           #
 ###############################################################################
