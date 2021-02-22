@@ -64,8 +64,9 @@ test-light:
 .PHONY: examples
 
 examples:
-	@python exp/examples/example_gradient_covariance.py
-	@python exp/examples/example_ggn.py
+	@python exp/examples/example_uncentered_gradient_covariance.py
+	@python exp/examples/example_centered_gradient_covariance.py
+	@python exp/examples/example_ggn_exact.py
 
 .PHONY: install-lint
 
