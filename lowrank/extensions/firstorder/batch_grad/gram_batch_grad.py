@@ -10,6 +10,10 @@ class CenteredBatchGrad(ParameterHook):
     Stores the output in an ``[N, *]`` tensor, where ``*`` is the associated
     parameter's shape. The output is stored in an attribute determined by
     ``savefield``.
+
+    Note: Single-use only
+
+        You need to create a new instance of this object every backpropagation.
     """
 
     _SAVEFIELD_GRAD_BATCH = "grad_batch"
