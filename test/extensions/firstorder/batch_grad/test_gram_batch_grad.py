@@ -4,7 +4,7 @@ from test.implementation.autograd import AutogradExtensions
 from test.implementation.backpack import BackpackExtensions
 from test.problem import make_test_problems
 from test.settings import SETTINGS
-from test.utils import check_sizes_and_values, remove_zeros
+from test.utils import check_sizes_and_values
 
 import pytest
 
@@ -12,6 +12,7 @@ from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
     CenteredGramBatchGrad,
     GramBatchGrad,
 )
+from lowrank.utils.eig import symeig
 
 PROBLEMS = make_test_problems(SETTINGS)
 IDS = [problem.make_id() for problem in PROBLEMS]
@@ -37,14 +38,11 @@ def test_GramBatchGrad_spectrum(problem):
     cov_mat = AutogradExtensions(problem).cov_batch_grad()
     gram_mat = BackpackExtensions(problem).gram_batch_grad()
 
-    cov_evals, _ = cov_mat.symeig()
-    gram_evals, _ = gram_mat.symeig()
-
     rtol, atol = 1e-5, 1e-6
-    filtered_cov_evals = remove_zeros(cov_evals, rtol=rtol, atol=atol)
-    filtered_gram_evals = remove_zeros(gram_evals, rtol=rtol, atol=atol)
+    cov_evals, _ = symeig(cov_mat, atol=atol, rtol=rtol)
+    gram_evals, _ = symeig(gram_mat, atol=atol, rtol=rtol)
 
-    check_sizes_and_values(filtered_cov_evals, filtered_gram_evals)
+    check_sizes_and_values(cov_evals, gram_evals)
     problem.tear_down()
 
 
@@ -68,14 +66,23 @@ def test_CenteredGramBatchGrad_spectrum(problem):
     cov_mat = AutogradExtensions(problem).centered_cov_batch_grad()
     gram_mat = BackpackExtensions(problem).centered_gram_batch_grad()
 
-    cov_evals, _ = cov_mat.symeig()
-    gram_evals, _ = gram_mat.symeig()
-
     rtol, atol = 1e-5, 1e-6
-    filtered_cov_evals = remove_zeros(cov_evals, rtol=rtol, atol=atol)
-    filtered_gram_evals = remove_zeros(gram_evals, rtol=rtol, atol=atol)
+    cov_evals, _ = symeig(cov_mat, atol=atol, rtol=rtol)
+    gram_evals, _ = symeig(gram_mat, atol=atol, rtol=rtol)
 
-    check_sizes_and_values(filtered_cov_evals, filtered_gram_evals)
+    check_sizes_and_values(cov_evals, gram_evals)
+    problem.tear_down()
+
+
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_CenteredBatchGrad(problem):
+    """Compare centered individual gradients computed by BackPACK with autograd."""
+    problem.set_up()
+
+    autograd_res = AutogradExtensions(problem).centered_batch_grad()
+    backpack_res = BackpackExtensions(problem).centered_batch_grad()
+
+    check_sizes_and_values(autograd_res, backpack_res)
     problem.tear_down()
 
 

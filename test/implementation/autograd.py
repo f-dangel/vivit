@@ -17,6 +17,12 @@ from backpack.utils.convert_parameters import vector_to_parameter_list
 class AutogradExtensions(ExtensionsImplementation):
     """Extension implementations with autograd."""
 
+    def centered_batch_grad(self):
+        N_axis = 0
+        centered_batch_grad = [bg - bg.mean(N_axis) for bg in self.batch_grad()]
+
+        return centered_batch_grad
+
     def centered_gram_batch_grad(self):
         batch_grad_flat = self._batch_grad_flat()
         batch_grad_flat -= batch_grad_flat.mean(0)
