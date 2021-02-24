@@ -1,0 +1,23 @@
+name: Build paper
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - development
+      - master
+      - release
+
+jobs:
+  latex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@v2
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v2
+        with:
+          working_directory: tex/paper
+          root_file: main.tex
