@@ -4,6 +4,31 @@ from lowrank.utils.gram import pairwise_dot
 from lowrank.utils.hooks import ParameterHook
 
 
+class CenteredBatchGrad(ParameterHook):
+    """Extension hook that centers individual gradients by subtracting their mean.
+
+    Stores the output in an ``[N, *]`` tensor, where ``*`` is the associated
+    parameter's shape. The output is stored in an attribute determined by
+    ``savefield``.
+
+    Note: Single-use only
+
+        You need to create a new instance of this object every backpropagation.
+    """
+
+    _SAVEFIELD_GRAD_BATCH = "grad_batch"
+
+    def __init__(self, savefield="centered_grad_batch"):
+        super().__init__(savefield)
+
+    def param_hook(self, param):
+        """Subtract individual gradient mean from individual gradients."""
+        N_axis = 0
+        grad_batch = getattr(param, self._SAVEFIELD_GRAD_BATCH)
+
+        return grad_batch - grad_batch.mean(N_axis)
+
+
 class _GramBatchGradBase(ParameterHook):
     """Base class for Gram matrices based on individual gradients.
 

@@ -41,6 +41,10 @@ class ExtensionsImplementation:
         batch_grad_flat -= batch_grad_flat.mean(0)
         return torch.einsum("ni,nj->ij", batch_grad_flat, batch_grad_flat)
 
+    def centered_batch_grad(self):
+        """Centered individual gradients."""
+        raise NotImplementedError
+
     def batch_grad(self):
         """Individual gradients."""
         raise NotImplementedError
