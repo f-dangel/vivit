@@ -18,3 +18,5 @@ src/
 /exp/exp01_mnist_cnn_spectra/results_multiple_batches/
 /exp/exp01_mnist_cnn_spectra/results/
 /exp/exp01_mnist_cnn_spectra/fig_multiple_batches/
+/exp/exp02_gradient_curvature_overlap/fig/
+/exp/exp02_gradient_curvature_overlap/results/
