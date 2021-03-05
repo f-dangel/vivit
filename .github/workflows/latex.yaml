@@ -21,3 +21,4 @@ jobs:
         with:
           working_directory: tex/paper
           root_file: main.tex
+          latexmk_use_lualatex: true
