@@ -1,6 +1,7 @@
 """Extension hook for computing the GGN Gram matrix."""
 
 from backpack.extensions.secondorder.hbp import LossHessianStrategy
+
 from lowrank.utils.gram import pairwise_dot
 from lowrank.utils.hooks import ParameterHook
 
@@ -12,6 +13,21 @@ class GramSqrtGGN(ParameterHook):
     }
 
     def __init__(self, loss_hessian_strategy, savefield, layerwise, free_sqrt_ggn):
+        """Initialize attributes.
+
+        Args:
+            loss_hessian_strategy (str, "exact" or "sampling"): String describing how
+                to represent the loss Hessian's symmetric decomposition that is back-
+                propagated.
+            savefield (str): Name of the attribute in under which the quantity computed
+                by this extension can be found in the model parameters.
+            layerwise (bool): Controls whether results should be kept layer-wise. If
+                ``False``, results are aggregated over all parameters, and can must be
+                retrieved via ``get_result``.
+            free_sqrt_ggn (bool): Controls whether the backpropagated symmetric loss
+                Hessian should be freed immediately after the Gram matrix has been
+                computed.
+        """
         super().__init__(savefield)
 
         self._gram_mat = None
@@ -20,7 +36,17 @@ class GramSqrtGGN(ParameterHook):
         self._savefield_sqrt_ggn = self.SQRT_GGN_SAVEFIELDS[loss_hessian_strategy]
 
     def param_hook(self, param):
-        """Compute pairwise dot products of GGN square root decomposition."""
+        """Compute pairwise dot products of GGN square root decomposition.
+
+        Args:
+            param (torch.nn.Parameter): Parameter whose GGN vectors are used
+                to compute pairwise dot products.
+
+        Returns:
+            torch.Tensor: ``[NC x NC]`` tensor containing the pairwise dot products of
+                of GGN vectors of samples ``1, ..., N`` and classes ``1, ..., C``,
+                for the parameter.
+        """
         sqrt_ggn = getattr(param, self._savefield_sqrt_ggn)
         gram_param = pairwise_dot(sqrt_ggn, start_dim=2).detach()
         self._update_result(gram_param)
@@ -32,7 +58,13 @@ class GramSqrtGGN(ParameterHook):
             return gram_param
 
     def get_result(self):
-        """Return the GGN Gram matrix computed from a backward pass."""
+        """Return the GGN Gram matrix computed from a backward pass.
+
+        Returns:
+            torch.Tensor: ``[NC x NC]`` tensor containing the pairwise dot products of
+                of GGN vectors of samples ``1, ..., N`` and classes ``1, ..., C``,
+                for all model parameters.
+        """
         return self._gram_mat
 
     def _update_result(self, mat):
