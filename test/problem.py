@@ -9,7 +9,6 @@ import copy
 from test.utils import get_available_devices
 
 import torch
-
 from backpack import extend
 
 

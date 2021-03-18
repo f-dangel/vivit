@@ -7,11 +7,10 @@ Note:
 from test.implementation.base import ExtensionsImplementation
 
 import torch
-from torch.nn.utils.convert_parameters import parameters_to_vector
-
 from backpack.hessianfree.ggnvp import ggn_vector_product, ggn_vector_product_from_plist
 from backpack.hessianfree.rop import R_op
 from backpack.utils.convert_parameters import vector_to_parameter_list
+from torch.nn.utils.convert_parameters import parameters_to_vector
 
 
 class AutogradExtensions(ExtensionsImplementation):

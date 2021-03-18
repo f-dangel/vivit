@@ -6,10 +6,10 @@ Note:
 """
 from test.implementation.base import ExtensionsImplementation
 
-import torch
-
 import backpack.extensions as new_ext
+import torch
 from backpack import backpack
+
 from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
     CenteredBatchGrad,
     CenteredGramBatchGrad,
