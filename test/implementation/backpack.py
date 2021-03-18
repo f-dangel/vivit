@@ -64,6 +64,23 @@ class BackpackExtensions(ExtensionsImplementation):
         sqrt_ggn = self.sqrt_ggn(subsampling=subsampling)
         return self._square_sqrt_ggn(sqrt_ggn)
 
+    def ggn_mc_chunk(self, mc_samples, chunks=10, subsampling=None):
+        """Like ``ggn_mc``, but handles larger number of samples by chunking."""
+        chunk_samples = (chunks - 1) * [mc_samples // chunks]
+        last_samples = mc_samples - sum(chunk_samples)
+        if last_samples != 0:
+            chunk_samples.append(last_samples)
+
+        chunk_weights = [samples / mc_samples for samples in chunk_samples]
+
+        ggn_mc = None
+
+        for weight, samples in zip(chunk_weights, chunk_samples):
+            chunk_ggn_mc = weight * self.ggn_mc(samples, subsampling=subsampling)
+            ggn_mc = chunk_ggn_mc if ggn_mc is None else ggn_mc + chunk_ggn_mc
+
+        return ggn_mc
+
     @staticmethod
     def _square_sqrt_ggn(sqrt_ggn):
         """Utility function to concatenate and square the GGN factorization."""

@@ -53,9 +53,7 @@ def test_ggn_mc(problem, subsampling):
 
     autograd_res = AutogradExtensions(problem).ggn(subsampling=subsampling)
     mc_samples = 100000
-    # NOTE May crash for large networks because of large number of samples.
-    # If necessary, resolve by chunking samples into smaller batches + averaging
-    backpack_res = BackpackExtensions(problem).ggn_mc(
+    backpack_res = BackpackExtensions(problem).ggn_mc_chunk(
         mc_samples, subsampling=subsampling
     )
 
