@@ -10,6 +10,10 @@ def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
     numerically close to zero. Use ``torch.symeig`` if you want all EVal/Evecs.
 
     Args:
+        input (torch.Tensor): 2d symmetric tensor.
+        eigenvectors (bool): Whether eigenvectors should be computed.
+        upper(bool): Whether to consider upper-triangular or lower-triangular
+            region of the matrix.
         atol (float): Absolute tolerance to detect zero EVals.
         rtol (float): Relative tolerance to detect zero EVals.
 
@@ -17,6 +21,9 @@ def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
         (torch.Tensor, torch.Tensor): First tensor of one dimension contains
             eigenvalues. Second tensor holds associated eigenvectors stored columnwise,
             i.e. ``evecs[:, i]`` is eigenvector with eigenvalue ``evals[i]``.
+
+    Raises:
+        ValueError: If ``input`` does not have dimension 2.
     """
     if input.dim() != 2:
         raise ValueError("Input must be of dimension 2")
@@ -37,7 +44,7 @@ def remove_zero_evals(evals, evecs, atol=1e-7, rtol=1e-5):
         atol (float): Absolute tolerance to detect zero EVals.
         rtol (float): Relative tolerance to detect zero EVals.
 
-    Returns
+    Returns:
         (torch.Tensor, torch.Tensor): Filtered EVals and EVecs.
     """
     nonzero = torch.isclose(

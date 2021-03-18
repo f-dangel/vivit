@@ -1,4 +1,5 @@
 from backpack.core.derivatives.flatten import FlattenDerivatives
+
 from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 

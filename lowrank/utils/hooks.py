@@ -30,6 +30,9 @@ class ModuleHook:
         Return:
             Arbitrary output which will be stored in ``param``'s attribute
             ``self.savefield``.
+
+        Raises:
+            NotImplementedError: Must be implemented by child classes.
         """
         raise NotImplementedError
 
@@ -38,7 +41,11 @@ class ModuleHook:
         self.processed = set()
 
     def __call__(self, module):
-        """Execute hook on all module parameters. Skip already processes parameters."""
+        """Execute hook on all module parameters. Skip already processes parameters.
+
+        Args:
+            module (torch.nn.Module): Hook is applied to all parameters in module.
+        """
         for param in module.parameters():
             if self.should_run_hook(param, module):
                 self.run_hook(param, module)
@@ -62,13 +69,23 @@ class ModuleHook:
             return id(param) not in self.processed and param.requires_grad
 
     def run_hook(self, param, module):
-        """Execute the hook on parameter, add it to processed items and store result."""
+        """Execute the hook on parameter, add it to processed items and store result.
+
+        Args:
+            param (torch.nn.Parameter): Parameter to execute the hook on.
+            module (torch.nn.Module): Module that contains ``param``.
+        """
         value = self.module_hook(param, module)
         self._save(value, param)
         self.processed.add(id(param))
 
     def _save(self, value, param):
-        """Store value in parameter's ``savefield`` argument."""
+        """Store value in parameter's ``savefield`` argument.
+
+        Args:
+            value (any): Arbitrary object that will be stored.
+            param (torch.nn.Parameter): Parameter the value is attached to.
+        """
         setattr(param, self.savefield, value)
 
 
@@ -90,6 +107,9 @@ class ParameterHook(ModuleHook):
         Return:
             Arbitrary output which will be stored in ``param``'s attribute
             ``self.savefield``.
+
+        Raises:
+            NotImplementedError: Must be implemented by child classes.
         """
         raise NotImplementedError
 
@@ -100,8 +120,8 @@ class ParameterHook(ModuleHook):
             param (torch.Tensor): Parameter of a neural net.
             module (torch.nn.Module): Layer that `param` is part of.
 
-        Return:
-            Arbitrary output which will be stored in ``param``'s attribute
+        Returns:
+            any: Arbitrary output which will be stored in ``param``'s attribute
             ``self.savefield``.
         """
         return self.param_hook(param)
@@ -118,13 +138,21 @@ class ExtensionHookManager:
         """Store parameter hooks.
 
         Args:
-            hooks (list(callable)): List of functions that accept a tensor and perform
+            hooks ([callable]): List of functions that accept a tensor and perform
                 a side effect. The signature is ``torch.Tensor -> None``.
         """
         self.hooks = self._remove_duplicates(hooks)
 
     def _remove_duplicates(self, hooks):
-        """Remove hook instances from the same class."""
+        """Remove hook instances from the same class.
+
+        Args:
+            hooks ([callable]): List of functions that accept a tensor and perform
+                a side effect. The signature is ``torch.Tensor -> None``.
+
+        Returns:
+            [callable]: Unified list of hook callables.
+        """
         self._check(hooks)
 
         hook_cls = set()

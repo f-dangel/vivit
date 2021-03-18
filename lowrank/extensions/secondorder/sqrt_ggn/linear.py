@@ -1,4 +1,5 @@
 from backpack.core.derivatives.linear import LinearDerivatives
+
 from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 

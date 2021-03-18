@@ -4,6 +4,7 @@ from backpack.core.derivatives.avgpool3d import AvgPool3DDerivatives
 from backpack.core.derivatives.maxpool1d import MaxPool1DDerivatives
 from backpack.core.derivatives.maxpool2d import MaxPool2DDerivatives
 from backpack.core.derivatives.maxpool3d import MaxPool3DDerivatives
+
 from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 
