@@ -1,5 +1,7 @@
 """Symmetric decomposition for the generalized Gauss-Newton."""
 
+from backpack.extensions.backprop_extension import BackpropExtension
+from backpack.extensions.secondorder.hbp import LossHessianStrategy
 from torch.nn import (
     ELU,
     SELU,
@@ -28,8 +30,6 @@ from torch.nn import (
     ZeroPad2d,
 )
 
-from backpack.extensions.backprop_extension import BackpropExtension
-from backpack.extensions.secondorder.hbp import LossHessianStrategy
 from lowrank.extensions.secondorder.sqrt_ggn import (
     activations,
     conv1d,
