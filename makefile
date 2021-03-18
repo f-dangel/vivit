@@ -17,6 +17,10 @@ help:
 	@echo "        Run the examples"
 	@echo "install-lint"
 	@echo "        Install only the linter tools (included in install-dev)"
+	@echo "isort"
+	@echo "        Run isort (sort imports) on the project"
+	@echo "isort-check"
+	@echo "        Check if isort (sort imports) would change files"
 	@echo "black"
 	@echo "        Run black on the project"
 	@echo "black-check"
@@ -72,6 +76,14 @@ examples:
 
 install-lint:
 	@pip install -r requirements/lint.txt
+
+.PHONY: isort isort-check
+
+isort:
+	@isort .
+
+isort-check:
+	@isort . --check --diff
 
 .PHONY: black black-check
 
