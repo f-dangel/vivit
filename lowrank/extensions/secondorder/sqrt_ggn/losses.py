@@ -28,12 +28,17 @@ class SqrtGGNLoss(SqrtGGNBaseModule):
             ValueError: If the strategy to represent the loss Hessian is unknown.
         """
         loss_hessian_strategy = ext.loss_hessian_strategy
+        subsampling = ext.get_subsampling()
 
         if loss_hessian_strategy == LossHessianStrategy.EXACT:
-            return self.derivatives.sqrt_hessian
+            return partial(self.derivatives.sqrt_hessian, subsampling=subsampling)
         elif loss_hessian_strategy == LossHessianStrategy.SAMPLING:
             mc_samples = ext.get_num_mc_samples()
-            return partial(self.derivatives.sqrt_hessian_sampled, mc_samples=mc_samples)
+            return partial(
+                self.derivatives.sqrt_hessian_sampled,
+                mc_samples=mc_samples,
+                subsampling=subsampling,
+            )
 
         else:
             raise ValueError(

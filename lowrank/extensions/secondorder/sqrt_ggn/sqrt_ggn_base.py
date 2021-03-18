@@ -6,11 +6,15 @@ class SqrtGGNBaseModule(MatToJacMat):
         super().__init__(derivatives, params=params)
 
     def bias(self, ext, module, g_inp, g_out, backproped):
+        subsampling = ext.get_subsampling()
+
         return self.derivatives.bias_jac_t_mat_prod(
-            module, g_inp, g_out, backproped, sum_batch=False
+            module, g_inp, g_out, backproped, sum_batch=False, subsampling=subsampling
         )
 
     def weight(self, ext, module, g_inp, g_out, backproped):
+        subsampling = ext.get_subsampling()
+
         return self.derivatives.weight_jac_t_mat_prod(
-            module, g_inp, g_out, backproped, sum_batch=False
+            module, g_inp, g_out, backproped, sum_batch=False, subsampling=subsampling
         )

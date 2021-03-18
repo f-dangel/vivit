@@ -7,11 +7,10 @@ Note:
 from test.implementation.base import ExtensionsImplementation
 
 import torch
-from torch.nn.utils.convert_parameters import parameters_to_vector
-
 from backpack.hessianfree.ggnvp import ggn_vector_product, ggn_vector_product_from_plist
 from backpack.hessianfree.rop import R_op
 from backpack.utils.convert_parameters import vector_to_parameter_list
+from torch.nn.utils.convert_parameters import parameters_to_vector
 
 
 class AutogradExtensions(ExtensionsImplementation):
@@ -141,8 +140,8 @@ class AutogradExtensions(ExtensionsImplementation):
 
         return diag_hs
 
-    def ggn(self):
-        _, output, loss = self.problem.forward_pass()
+    def sample_ggn(self, sample_idx=None):
+        _, output, loss = self.problem.forward_pass(sample_idx=sample_idx)
         model = self.problem.model
 
         num_params = sum(p.numel() for p in model.parameters())
@@ -161,6 +160,39 @@ class AutogradExtensions(ExtensionsImplementation):
             ggn[i, :] = ggn_i
 
         return ggn
+
+    def ggn(self, subsampling=None):
+        if subsampling is None:
+            return self.sample_ggn(sample_idx=subsampling)
+        else:
+            N_axis = 0
+            return self.ggn_batch(subsampling=subsampling).sum(N_axis)
+
+    def ggn_batch(self, subsampling=None):
+        batch_size = self.problem.input.shape[0]
+
+        # for determining the scaling factor stemming from reduction in the loss
+        _, _, batch_loss = self.problem.forward_pass()
+        loss_list = torch.zeros(batch_size, device=self.problem.device)
+
+        if subsampling is None:
+            subsampling = list(range(batch_size))
+
+        batch_ggn = [None for _ in range(len(subsampling))]
+
+        for b in range(batch_size):
+            _, _, loss = self.problem.forward_pass(sample_idx=b)
+
+            if b in subsampling:
+                sample_idx = subsampling.index(b)
+                ggn = self.sample_ggn(sample_idx=sample_idx)
+                batch_ggn[sample_idx] = ggn
+
+            loss_list[b] = loss
+
+        factor = self.problem.get_reduction_factor(batch_loss, loss_list)
+
+        return torch.stack(batch_ggn) * factor
 
     def diag_ggn_via_ggn(self):
         """Compute full GGN and extract diagonal. Reshape according to param shapes."""

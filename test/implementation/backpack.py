@@ -6,10 +6,10 @@ Note:
 """
 from test.implementation.base import ExtensionsImplementation
 
-import torch
-
 import backpack.extensions as new_ext
+import torch
 from backpack import backpack
+
 from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
     CenteredBatchGrad,
     CenteredGramBatchGrad,
@@ -56,12 +56,12 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return hook.get_result()
 
-    def ggn_mc(self, mc_samples):
-        sqrt_ggn_mc = self.sqrt_ggn_mc(mc_samples)
+    def ggn_mc(self, mc_samples, subsampling=None):
+        sqrt_ggn_mc = self.sqrt_ggn_mc(mc_samples, subsampling=subsampling)
         return self._square_sqrt_ggn(sqrt_ggn_mc)
 
-    def ggn(self):
-        sqrt_ggn = self.sqrt_ggn()
+    def ggn(self, subsampling=None):
+        sqrt_ggn = self.sqrt_ggn(subsampling=subsampling)
         return self._square_sqrt_ggn(sqrt_ggn)
 
     @staticmethod
@@ -70,15 +70,15 @@ class BackpackExtensions(ExtensionsImplementation):
         sqrt_ggn = torch.cat([s.flatten(start_dim=2) for s in sqrt_ggn], dim=2)
         return torch.einsum("nci,ncj->ij", sqrt_ggn, sqrt_ggn)
 
-    def sqrt_ggn(self):
-        with backpack(SqrtGGNExact()):
+    def sqrt_ggn(self, subsampling=None):
+        with backpack(SqrtGGNExact(subsampling=subsampling)):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
         return [p.sqrt_ggn_exact for p in self.problem.model.parameters()]
 
-    def sqrt_ggn_mc(self, mc_samples):
-        with backpack(SqrtGGNMC(mc_samples=mc_samples)):
+    def sqrt_ggn_mc(self, mc_samples, subsampling=None):
+        with backpack(SqrtGGNMC(mc_samples=mc_samples, subsampling=subsampling)):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
