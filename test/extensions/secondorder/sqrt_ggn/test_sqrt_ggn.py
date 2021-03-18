@@ -34,7 +34,7 @@ def test_ggn(problem, subsampling):
     problem.tear_down()
 
 
-MC_ATOL = 2e-3
+MC_ATOL = 1e-3
 MC_RTOL = 1e-2
 
 
@@ -52,7 +52,7 @@ def test_ggn_mc(problem, subsampling):
     problem.set_up()
 
     autograd_res = AutogradExtensions(problem).ggn(subsampling=subsampling)
-    mc_samples = 100000
+    mc_samples = 300000
     backpack_res = BackpackExtensions(problem).ggn_mc_chunk(
         mc_samples, subsampling=subsampling
     )
