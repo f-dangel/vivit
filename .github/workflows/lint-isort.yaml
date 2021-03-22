@@ -1,4 +1,4 @@
-name: Lint-darglint
+name: Lint-isort
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
 
 
 jobs:
-  darglint:
+  isort:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
@@ -24,6 +24,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         make install-lint
-    - name: Run darglint
+    - name: Run isort
       run: |
-        make darglint-check
+        make isort-check

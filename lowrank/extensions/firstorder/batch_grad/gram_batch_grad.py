@@ -22,7 +22,15 @@ class CenteredBatchGrad(ParameterHook):
         super().__init__(savefield)
 
     def param_hook(self, param):
-        """Subtract individual gradient mean from individual gradients."""
+        """Subtract individual gradient mean from individual gradients.
+
+        Args:
+            param (torch.nn.Parameter): Parameter whose individual gradients will
+                be centered an saved under ``savefield``.
+
+        Returns:
+            torch.Tensor: Centered parameter-wise individual gradients.
+        """
         N_axis = 0
         grad_batch = getattr(param, self._SAVEFIELD_GRAD_BATCH)
 
@@ -70,6 +78,14 @@ class _GramBatchGradBase(ParameterHook):
 
         Optionally center individual gradients before the scalar product, depending
         on ``self._center``.
+
+        Args:
+            param (torch.nn.Parameter): Parameter whose individual gradients are used
+                to compute pairwise dot products.
+
+        Returns:
+            torch.Tensor: ``[N x N]`` tensor containing the pairwise dot products of
+                of ``param``'s individual gradients w.r.t samples ``1, ..., N``.
         """
         grad_batch = getattr(param, self._SAVEFIELD_GRAD_BATCH)
 
@@ -86,7 +102,12 @@ class _GramBatchGradBase(ParameterHook):
             return gram_param
 
     def get_result(self):
-        """Return (un-)centered gradient Gram matrix computed from a backward pass."""
+        """Return (un-)centered gradient Gram matrix computed from a backward pass.
+
+        Returns:
+            torch.Tensor: ``[N x N]`` tensor containing the pairwise dot products of
+                of individual gradients w.r.t samples ``1, ..., N``.
+        """
         return self._gram_mat
 
     def _update_result(self, mat):

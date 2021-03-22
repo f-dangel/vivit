@@ -3,6 +3,7 @@ from functools import partial
 from backpack.core.derivatives.crossentropyloss import CrossEntropyLossDerivatives
 from backpack.core.derivatives.mseloss import MSELossDerivatives
 from backpack.extensions.secondorder.hbp import LossHessianStrategy
+
 from lowrank.extensions.secondorder.sqrt_ggn.sqrt_ggn_base import SqrtGGNBaseModule
 
 
@@ -13,7 +14,19 @@ class SqrtGGNLoss(SqrtGGNBaseModule):
         return hess_func(module, grad_inp, grad_out)
 
     def make_loss_hessian_func(self, ext):
-        """Get function that produces the backpropagated quantity."""
+        """Get function that produces the backpropagated quantity.
+
+        Args:
+            ext (backpack.backprop_extension.BackpropExtension): BackPACK extension
+                that is active in the current backward pass.
+
+        Returns:
+            callable: Function without arguments, that produces the loss Hessian's
+                symmetric factorization.
+
+        Raises:
+            ValueError: If the strategy to represent the loss Hessian is unknown.
+        """
         loss_hessian_strategy = ext.loss_hessian_strategy
 
         if loss_hessian_strategy == LossHessianStrategy.EXACT:

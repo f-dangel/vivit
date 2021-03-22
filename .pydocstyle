@@ -1,5 +1,6 @@
 [pydocstyle]
 convention = google
+match_dir = ^(?!(fig|test|.git|tex)).*
 match = .*\.py
 # ignore =
 #   A,

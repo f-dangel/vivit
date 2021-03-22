@@ -41,7 +41,17 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
 
 
 def get_letters(num_letters):
-    """Return a list of ``num_letters`` unique letters."""
+    """Return a list of ``num_letters`` unique letters.
+
+    Args:
+        num_letters (int): Number of requested unique letters.
+
+    Returns:
+        str: Unique letters, concatenated as a string.
+
+    Raises:
+        ValueError: If the number of requested letters exceeds the alphabet size.
+    """
     MAX_LETTERS = 26
 
     if num_letters > MAX_LETTERS:
@@ -139,12 +149,22 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
         torch.Tensor: If ``concat=True``, every element of the above list is flattened
             up to the column space of ``mat``, then concatenated along the flattened
             parameter dimension.
+
+    Raises:
+        NotImplementedError: If ``mat`` does not have dimension 2.
     """
     if mat.dim() != 2:
         raise NotImplementedError("Can only multiply with matrices")
 
     def mat_prod(p):
-        """Multiply columns of ``mat`` with ``p``'s Gram matrix square root."""
+        """Multiply columns of ``mat`` with ``p``'s Gram matrix square root ``U``.
+
+        Args:
+            p (torch.nn.Parameter): Parameter whose ``U`` will be used.
+
+        Returns:
+            torch.Tensor: Result of the matrix-multiply ``U @ mat``.
+        """
         gram_sqrt = getattr(p, savefield).flatten(end_dim=start_dim - 1)
 
         letters = get_letters(mat.dim() + gram_sqrt.dim() - 1)
