@@ -71,6 +71,7 @@ examples:
 	@python exp/examples/example_uncentered_gradient_covariance.py
 	@python exp/examples/example_centered_gradient_covariance.py
 	@python exp/examples/example_ggn_exact.py
+	@python exp/examples/example_optimizer_mnist.py
 
 .PHONY: install-lint
 
