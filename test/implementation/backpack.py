@@ -56,13 +56,30 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return hook.get_result()
 
-    def ggn_mc(self, mc_samples):
-        sqrt_ggn_mc = self.sqrt_ggn_mc(mc_samples)
+    def ggn_mc(self, mc_samples, subsampling=None):
+        sqrt_ggn_mc = self.sqrt_ggn_mc(mc_samples, subsampling=subsampling)
         return self._square_sqrt_ggn(sqrt_ggn_mc)
 
-    def ggn(self):
-        sqrt_ggn = self.sqrt_ggn()
+    def ggn(self, subsampling=None):
+        sqrt_ggn = self.sqrt_ggn(subsampling=subsampling)
         return self._square_sqrt_ggn(sqrt_ggn)
+
+    def ggn_mc_chunk(self, mc_samples, chunks=10, subsampling=None):
+        """Like ``ggn_mc``, but handles larger number of samples by chunking."""
+        chunk_samples = (chunks - 1) * [mc_samples // chunks]
+        last_samples = mc_samples - sum(chunk_samples)
+        if last_samples != 0:
+            chunk_samples.append(last_samples)
+
+        chunk_weights = [samples / mc_samples for samples in chunk_samples]
+
+        ggn_mc = None
+
+        for weight, samples in zip(chunk_weights, chunk_samples):
+            chunk_ggn_mc = weight * self.ggn_mc(samples, subsampling=subsampling)
+            ggn_mc = chunk_ggn_mc if ggn_mc is None else ggn_mc + chunk_ggn_mc
+
+        return ggn_mc
 
     @staticmethod
     def _square_sqrt_ggn(sqrt_ggn):
@@ -70,15 +87,15 @@ class BackpackExtensions(ExtensionsImplementation):
         sqrt_ggn = torch.cat([s.flatten(start_dim=2) for s in sqrt_ggn], dim=2)
         return torch.einsum("nci,ncj->ij", sqrt_ggn, sqrt_ggn)
 
-    def sqrt_ggn(self):
-        with backpack(SqrtGGNExact()):
+    def sqrt_ggn(self, subsampling=None):
+        with backpack(SqrtGGNExact(subsampling=subsampling)):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
         return [p.sqrt_ggn_exact for p in self.problem.model.parameters()]
 
-    def sqrt_ggn_mc(self, mc_samples):
-        with backpack(SqrtGGNMC(mc_samples=mc_samples)):
+    def sqrt_ggn_mc(self, mc_samples, subsampling=None):
+        with backpack(SqrtGGNMC(mc_samples=mc_samples, subsampling=subsampling)):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 

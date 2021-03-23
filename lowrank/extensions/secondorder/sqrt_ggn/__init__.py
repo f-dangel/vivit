@@ -53,7 +53,7 @@ class SqrtGGN(BackpropExtension):
         LossHessianStrategy.SAMPLING,
     ]
 
-    def __init__(self, loss_hessian_strategy, savefield):
+    def __init__(self, loss_hessian_strategy, savefield, subsampling):
         if loss_hessian_strategy not in self.VALID_LOSS_HESSIAN_STRATEGIES:
             raise ValueError(
                 "Unknown hessian strategy: {}".format(loss_hessian_strategy)
@@ -92,29 +92,42 @@ class SqrtGGN(BackpropExtension):
                 SELU: activations.SqrtGGNSELU(),
             },
         )
+        self._subsampling = subsampling
+
+    def get_subsampling(self):
+        """Return indices of samples whose GGN/Fisher factorizations are evaluated.
+
+        Returns:
+            None or [int]: Indices of samples considered by the computation. ``None``
+                signifies that the full mini-batch is used.
+        """
+        return self._subsampling
 
 
 class SqrtGGNExact(SqrtGGN):
     """
-    Symmetric composition of the Generalized Gauss-Newton/Fisher.
+    Symmetric factorization of the Generalized Gauss-Newton/Fisher.
     Uses the exact Hessian of the loss w.r.t. the model output.
 
     Stores the output in :code:`sqrt_ggn_exact`,
     has the dimensions ``[C, N, *]``, where ``C`` is the model output dimension (number
-    of classes for classification problems), ``N`` is the batch size, and ``*`` denotes
-    the parameter shape.
+    of classes for classification problems), ``N`` is the batch (or subset) size, and
+    ``*`` denotes the parameter shape.
 
     For a faster but less precise alternative, see
     :py:meth:`lowrank.extensions.SqrtGGNMC`.
 
-    Details:
+    Args:
+        subsampling ([int], optional): Indices of samples in the current mini-batch,
+            that will be backpropagated. Default value ``None`` uses the entire batch.
 
+    Details:
         The ``[CN, *]`` matrix view ``V`` of :code:`sqrt_ggn_exact` is the symmetric
         factorization of the exact parameter GGN, i.e. ``G(θ) = Vᵀ V``.
     """
 
-    def __init__(self):
-        super().__init__(LossHessianStrategy.EXACT, "sqrt_ggn_exact")
+    def __init__(self, subsampling=None):
+        super().__init__(LossHessianStrategy.EXACT, "sqrt_ggn_exact", subsampling)
 
 
 class SqrtGGNMC(SqrtGGN):
@@ -124,18 +137,21 @@ class SqrtGGNMC(SqrtGGN):
 
     Stores the output in :code:`sqrt_ggn_mc`,
     has the dimensions ``[C, N, *]``, where ``C`` is the model output dimension (number
-    of classes for classification problems), ``N`` is the batch size, and ``*`` denotes
-    the parameter shape.
+    of classes for classification problems), ``N`` is the batch (or subset) size, and
+    ``*`` denotes the parameter shape.
+
+    Args:
+        subsampling ([int], optional): Indices of samples in the current mini-batch,
+            that will be backpropagated. Default value ``None`` uses the entire batch.
 
     Details:
-
         The ``[CN, *]`` matrix view ``V`` of :code:`sqrt_ggn_mc` is the symmetric
         factorization of the approximate parameter GGN, i.e. ``G(θ) ≈ Vᵀ V``.
     """
 
-    def __init__(self, mc_samples=1):
+    def __init__(self, mc_samples=1, subsampling=None):
         self._mc_samples = mc_samples
-        super().__init__(LossHessianStrategy.SAMPLING, "sqrt_ggn_mc")
+        super().__init__(LossHessianStrategy.SAMPLING, "sqrt_ggn_mc", subsampling)
 
     def get_num_mc_samples(self):
         return self._mc_samples
