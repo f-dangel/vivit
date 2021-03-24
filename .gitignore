@@ -22,3 +22,7 @@ src/
 /exp/exp02_gradient_curvature_overlap/results/
 /exp/exp02_gradient_curvature_overlap/fig_multiple_batches/
 /exp/exp02_gradient_curvature_overlap/results_multiple_batches/
+/exp/exp04_gradient_signal_to_noise_ratio/fig/
+/exp/exp04_gradient_signal_to_noise_ratio/results/
+/exp/exp05_curvature_signal_to_noise_ratio/results/
+/exp/exp05_curvature_signal_to_noise_ratio/fig/
