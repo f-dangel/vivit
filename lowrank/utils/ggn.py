@@ -180,12 +180,19 @@ def _same_shape(tensor_list, start=0, end=-1):
     """
 
     def _slice(shape):
-        """Get relevant parts of the shape for comparison."""
+        """Get relevant parts of the shape for comparison.
+
+        Args:
+            shape (torch.Size): Shape of a ``torch.Tensor``.
+
+        Returns:
+            torch.Size: Relevant sub-shape.
+        """
         return shape[start:] if end == -1 else shape[start : end + 1]
 
     unique = {_slice(tensor.shape) for tensor in tensor_list}
 
     if len(unique) != 1:
         raise ValueError(
-            f"Found non-unique shapes comparing dims {start} to including {end}: {unique}"
+            f"Got non-unique shapes comparing dims {start} to including {end}: {unique}"
         )

@@ -232,7 +232,7 @@ class AutogradExtensions(ExtensionsImplementation):
         Returns:
             [torch.Tensor]: Result of multiplication with the GGN
         """
-        parameters = [p for p in self.problem.model.parameters()]
+        parameters = list(self.problem.model.parameters())
 
         if subsampling is None:
             _, output, loss = self.problem.forward_pass()

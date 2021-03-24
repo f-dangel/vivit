@@ -235,7 +235,7 @@ class BackpackExtensions(ExtensionsImplementation):
         return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_mc", subsampling=subsampling)
 
     def ggn_mc_mat_prod_chunk(self, mat_list, mc_samples, chunks=10, subsampling=None):
-        """Like ``ggn_mc_mat_prod``, but handles larger number of samples by chunking."""
+        """Like ``ggn_mc_mat_prod``. Handles larger number of samples by chunking."""
         chunk_samples = self.chunk_sizes(mc_samples, chunks)
         chunk_weights = [samples / mc_samples for samples in chunk_samples]
 

@@ -58,6 +58,6 @@ def merge_subsamplings(subsampling1, subsampling2):
         for subsampling in (subsampling1, subsampling2):
             assert isinstance(subsampling, list), "Must be list"
 
-        merged = sorted(list(set(subsampling1 + subsampling2)))
+        merged = sorted(set(subsampling1 + subsampling2))
 
     return merged
