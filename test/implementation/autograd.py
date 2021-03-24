@@ -189,37 +189,73 @@ class AutogradExtensions(ExtensionsImplementation):
 
         return vector_to_parameter_list(diag_ggn, self.problem.model.parameters())
 
-    def ggn_mat_prod(self, mat_list):
+    def ggn_mat_prod(self, mat_list, subsampling=None):
         """Vectorized multiplication with the Generalized Gauss-Newton/Fisher.
-
-        Uses multiplication with symmetric factors ``V``, ``Vᵀ``, and ``G = V @ Vᵀ``.
 
         Args:
             mat_list ([torch.Tensor]): Layer-wise split of matrices to be multiplied
                 by the GGN. Each item has a free leading dimension, and shares the
                 same trailing dimensions with the associated parameter.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
 
         Returns:
             [torch.Tensor]: Result of multiplication with the GGN
         """
-        _, output, loss = self.problem.forward_pass()
-
-        parameters = [p for p in self.problem.model.parameters()]
-
-        GGN_mat_list = [None for _ in mat_list]
+        ggn_mat_list = [None for _ in mat_list]
 
         for V in range(mat_list[0].shape[0]):
             vec_list = [mat[V] for mat in mat_list]
+            ggn_vec_list = self.ggn_vec_prod(vec_list, subsampling=subsampling)
+            ggn_vec_list = [ggn_v.unsqueeze(0) for ggn_v in ggn_vec_list]
 
-            GGN_vec_list = ggn_vector_product_from_plist(
-                loss, output, parameters, vec_list
-            )
-            GGN_vec_list = [ggn_v.unsqueeze(0) for ggn_v in GGN_vec_list]
-
-            for idx, ggn_v in enumerate(GGN_vec_list):
-                ggn_m = GGN_mat_list[idx]
+            # update
+            for idx, ggn_v in enumerate(ggn_vec_list):
+                ggn_m = ggn_mat_list[idx]
                 ggn_m = ggn_v if ggn_m is None else torch.cat([ggn_m, ggn_v])
 
-                GGN_mat_list[idx] = ggn_m
+                ggn_mat_list[idx] = ggn_m
 
-        return GGN_mat_list
+        return ggn_mat_list
+
+    def ggn_vec_prod(self, vec_list, subsampling=None):
+        """Multiplication with the Generalized Gauss-Newton/Fisher.
+
+        Args:
+            mat_list ([torch.Tensor]): Layer-wise split of vectors to be multiplied by
+                the GGN. Each item has the same dimensions as the associated parameter.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
+
+        Returns:
+            [torch.Tensor]: Result of multiplication with the GGN
+        """
+        parameters = [p for p in self.problem.model.parameters()]
+
+        if subsampling is None:
+            _, output, loss = self.problem.forward_pass()
+            return ggn_vector_product_from_plist(loss, output, parameters, vec_list)
+        else:
+            ggn_vec_list = [None for _ in vec_list]
+            factor = self.problem.compute_reduction_factor()
+
+            for n in subsampling:
+                _, output_n, loss_n = self.problem.forward_pass(sample_idx=n)
+
+                ggn_n_vec_list = [
+                    factor * ggn_n_vec
+                    for ggn_n_vec in ggn_vector_product_from_plist(
+                        loss_n, output_n, parameters, vec_list
+                    )
+                ]
+
+                # update
+                for idx, ggn_n_vec in enumerate(ggn_n_vec_list):
+                    old_res = ggn_vec_list[idx]
+                    new_res = ggn_n_vec if old_res is None else old_res + ggn_n_vec
+
+                    ggn_vec_list[idx] = new_res
+
+            return ggn_vec_list

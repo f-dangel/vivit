@@ -167,7 +167,7 @@ class BackpackExtensions(ExtensionsImplementation):
             diag_h = [p.diag_h for p in self.problem.model.parameters()]
         return diag_h
 
-    def ggn_mat_prod(self, mat_list):
+    def ggn_mat_prod(self, mat_list, subsampling=None):
         """Vectorized multiplication with the Generalized Gauss-Newton/Fisher.
 
         Uses multiplication with symmetric factors ``V``, ``Vᵀ``, and ``G = V @ Vᵀ``.
@@ -176,6 +176,9 @@ class BackpackExtensions(ExtensionsImplementation):
             mat_list ([torch.Tensor]): Layer-wise split of matrices to be multiplied
                 by the GGN. Each item has a free leading dimension, and shares the
                 same trailing dimensions with the associated parameter.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
 
         Returns:
             [torch.Tensor]: Result of multiplication with the GGN
@@ -184,9 +187,9 @@ class BackpackExtensions(ExtensionsImplementation):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
-        return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_exact")
+        return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_exact", subsampling=subsampling)
 
-    def _V_V_t_mat_prod(self, mat_list, savefield):
+    def _V_V_t_mat_prod(self, mat_list, savefield, subsampling=None):
         """Multiply with the GGN's symmetric factors ``V`` and ``Vᵀ``.
 
         Args:
@@ -194,18 +197,21 @@ class BackpackExtensions(ExtensionsImplementation):
                 by the GGN. Each item has a free leading dimension, and shares the
                 same trailing dimensions with the associated parameter.
             savefield (str): Attribute under which ``Vᵀ`` is saved in the parameters.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
 
         Returns:
             [torch.Tensor]: Result of multiplication with ``V @ Vᵀ``.
         """
         parameters = list(self.problem.model.parameters())
 
-        result = V_t_mat_prod(mat_list, parameters, savefield)
-        result = V_mat_prod(result, parameters, savefield)
+        result = V_t_mat_prod(mat_list, parameters, savefield, subsampling=subsampling)
+        result = V_mat_prod(result, parameters, savefield, subsampling=subsampling)
 
         return result
 
-    def ggn_mc_mat_prod(self, mat_list, mc_samples):
+    def ggn_mc_mat_prod(self, mat_list, mc_samples, subsampling=None):
         """Vectorized multiplication with the MC Generalized Gauss-Newton/Fisher.
 
         Uses multiplication with symmetric factors ``V``, ``Vᵀ``, and ``G = V @ Vᵀ``.
@@ -215,6 +221,9 @@ class BackpackExtensions(ExtensionsImplementation):
                 by the GGN. Each item has a free leading dimension, and shares the
                 same trailing dimensions with the associated parameter.
             mc_samples (int): Number of MC samples used to approximate the GGN.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
 
         Returns:
             [torch.Tensor]: Result of multiplication with the MC-approximated GGN
@@ -223,9 +232,9 @@ class BackpackExtensions(ExtensionsImplementation):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
-        return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_mc")
+        return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_mc", subsampling=subsampling)
 
-    def ggn_mc_mat_prod_chunk(self, mat_list, mc_samples, chunks=10):
+    def ggn_mc_mat_prod_chunk(self, mat_list, mc_samples, chunks=10, subsampling=None):
         """Like ``ggn_mc_mat_prod``, but handles larger number of samples by chunking."""
         chunk_samples = self.chunk_sizes(mc_samples, chunks)
         chunk_weights = [samples / mc_samples for samples in chunk_samples]
@@ -233,7 +242,9 @@ class BackpackExtensions(ExtensionsImplementation):
         ggn_mc_mat = [None for _ in mat_list]
 
         for weight, samples in zip(chunk_weights, chunk_samples):
-            chunk_ggn_mc_mat = self.ggn_mc_mat_prod(mat_list, samples)
+            chunk_ggn_mc_mat = self.ggn_mc_mat_prod(
+                mat_list, samples, subsampling=subsampling
+            )
             chunk_ggn_mc_mat = [weight * ggn_mc_m for ggn_mc_m in chunk_ggn_mc_mat]
 
             # update existing ggn_mc_mats

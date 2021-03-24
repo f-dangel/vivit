@@ -5,7 +5,7 @@ import torch
 from lowrank.utils.gram import get_letters
 
 
-def V_t_mat_prod(mat_list, parameters, savefield, flatten=False):
+def V_t_mat_prod(mat_list, parameters, savefield, subsampling=None, flatten=False):
     """Multiply with the GGN(MC) matrix square root ``Vᵀ`` defined by ``parameters``.
 
     Shapes:
@@ -27,6 +27,8 @@ def V_t_mat_prod(mat_list, parameters, savefield, flatten=False):
         savefield (str): Attribute under which ``Vᵀ`` is stored in a parameter.
         flatten (bool): Whether to flatten the output dimensions ``[C, N]`` into
             ``[C * N]``. Default: ``False``.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
+            available samples.
 
     Returns:
         torch.Tensor: Result of multiplication. Has shape ``[F, C * N]`` if ``flatten``
@@ -37,7 +39,8 @@ def V_t_mat_prod(mat_list, parameters, savefield, flatten=False):
     assert len(mat_list) == len(parameters), "Matrices must have length of parameters."
 
     result = sum(
-        _V_param_t_mat_prod(p, mat, savefield) for p, mat in zip(parameters, mat_list)
+        _V_param_t_mat_prod(p, mat, savefield, subsampling=subsampling)
+        for p, mat in zip(parameters, mat_list)
     )
 
     if flatten:
@@ -46,18 +49,20 @@ def V_t_mat_prod(mat_list, parameters, savefield, flatten=False):
     return result
 
 
-def _V_param_t_mat_prod(param, mat, savefield):
+def _V_param_t_mat_prod(param, mat, savefield, subsampling=None):
     """Multiply with the GGN(MC) matrix square root ``Vᵀ`` defined by ``param``.
 
     Args:
         param (torch.nn.Parameter): Parameter defining``Vᵀ```.
         mat (torch.Tensor): Matrix to be multiplied with ``Vᵀ``.
         savefield (str): Attribute under which ``Vᵀ`` is stored in ``param``.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
+            available samples.
 
     Returns:
         torch.Tensor: Result of the matrix-multiply ``Vᵀ @ mat``.
     """
-    V_t = getattr(param, savefield)
+    V_t = _get_V_t(param, savefield, subsampling=subsampling)
     start_dim = 2
 
     # build einsum equation
@@ -72,7 +77,7 @@ def _V_param_t_mat_prod(param, mat, savefield):
     return torch.einsum(equation, mat, V_t)
 
 
-def V_mat_prod(mat, parameters, savefield, concat=False):
+def V_mat_prod(mat, parameters, savefield, subsampling=None, concat=False):
     """Multiply with the GGN(MC) matrix square root ``V`` defined by ``parameters``.
 
     Shapes:
@@ -91,6 +96,8 @@ def V_mat_prod(mat, parameters, savefield, concat=False):
         savefield (str): Attribute under which ``Vᵀ`` is stored in a parameter.
         concat (bool, optional): Whether to flatten and concatenate the result over
             parameters. Default: ``False``.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
+            available samples.
 
     Returns:
         [torch.Tensor] or torch.Tensor: If ``concat`` is ``True``, the multiplication
@@ -100,7 +107,9 @@ def V_mat_prod(mat, parameters, savefield, concat=False):
     """
     assert mat.dim() == 3, "mat must be [F, C, N]. Got {mat.dim()} dimensions."
 
-    result = [V_param_mat_prod(p, mat, savefield) for p in parameters]
+    result = [
+        V_param_mat_prod(p, mat, savefield, subsampling=subsampling) for p in parameters
+    ]
 
     if concat:
         start_dim = 1
@@ -110,18 +119,40 @@ def V_mat_prod(mat, parameters, savefield, concat=False):
     return result
 
 
-def V_param_mat_prod(param, mat, savefield):
+def _get_V_t(param, savefield, subsampling=None):
+    """Fetch the GGN(MC) matrix square root ``Vᵀ`` with active samples.
+
+    Args:
+        param (torch.nn.Parameter): Parameter defining``Vᵀ```.
+        savefield (str): Attribute under which ``Vᵀ`` is stored in a parameter.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
+            available samples.
+
+    Returns:
+        torch.Tensor: Sub-sampled ``Vᵀ`` tensor.
+    """
+    V_t = getattr(param, savefield)
+
+    if subsampling is not None:
+        V_t = V_t[:, subsampling]
+
+    return V_t
+
+
+def V_param_mat_prod(param, mat, savefield, subsampling=None):
     """Multiply with the GGN(MC) matrix square root ``V`` defined by ``param``.
 
     Args:
         param (torch.nn.Parameter): Parameter defining``Vᵀ```.
         mat (torch.Tensor): Matrix to be multiplied with ``V``.
         savefield (str): Attribute under which ``Vᵀ`` is stored in ``param``.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
+            available samples.
 
     Returns:
         torch.Tensor: Result of the matrix-multiply ``V @ mat``.
     """
-    V_t = getattr(param, savefield)
+    V_t = _get_V_t(param, savefield, subsampling=subsampling)
     start_dim = 2
 
     # build einsum equation
