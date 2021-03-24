@@ -169,30 +169,19 @@ class AutogradExtensions(ExtensionsImplementation):
             return self.ggn_batch(subsampling=subsampling).sum(N_axis)
 
     def ggn_batch(self, subsampling=None):
+        factor = self.problem.compute_reduction_factor()
+
         batch_size = self.problem.input.shape[0]
-
-        # for determining the scaling factor stemming from reduction in the loss
-        _, _, batch_loss = self.problem.forward_pass()
-        loss_list = torch.zeros(batch_size, device=self.problem.device)
-
         if subsampling is None:
             subsampling = list(range(batch_size))
 
         batch_ggn = [None for _ in range(len(subsampling))]
 
-        for b in range(batch_size):
-            _, _, loss = self.problem.forward_pass(sample_idx=b)
+        for out_idx, n in enumerate(subsampling):
+            ggn_n = self.sample_ggn(sample_idx=n)
+            batch_ggn[out_idx] = factor * ggn_n
 
-            if b in subsampling:
-                sample_idx = subsampling.index(b)
-                ggn = self.sample_ggn(sample_idx=sample_idx)
-                batch_ggn[sample_idx] = ggn
-
-            loss_list[b] = loss
-
-        factor = self.problem.get_reduction_factor(batch_loss, loss_list)
-
-        return torch.stack(batch_ggn) * factor
+        return torch.stack(batch_ggn)
 
     def diag_ggn_via_ggn(self):
         """Compute full GGN and extract diagonal. Reshape according to param shapes."""

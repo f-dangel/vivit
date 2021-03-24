@@ -149,3 +149,16 @@ class ExtensionsTestProblem:
                 f"'mean': {mean_loss}, 'sum': {sum_loss}, loss: {loss}",
             )
         return factor
+
+    def compute_reduction_factor(self):
+        """Compute and return the loss function's reduction factor in batch mode."""
+        _, _, loss = self.forward_pass()
+
+        batch_size = self.input.shape[0]
+        loss_list = torch.zeros(batch_size, device=self.device)
+
+        for n in range(batch_size):
+            _, _, loss_n = self.forward_pass(sample_idx=n)
+            loss_list[n] = loss_n
+
+        return self.get_reduction_factor(loss, loss_list)
