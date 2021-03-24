@@ -7,6 +7,7 @@ from test.settings import SETTINGS
 from test.utils import check_sizes_and_values
 
 import pytest
+import torch
 
 PROBLEMS = make_test_problems(SETTINGS)
 IDS = [problem.make_id() for problem in PROBLEMS]
@@ -34,8 +35,29 @@ def test_ggn(problem, subsampling):
     problem.tear_down()
 
 
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_ggn_mat_prod(problem, V=3):
+    """Compare multiplication with the GGN with multiplication by its factors.
+
+    Args:
+        V (int, optional): Number of vectors to multiply with in parallel.
+
+    """
+    problem.set_up()
+
+    mat_list = rand_mat_list_like_parameters(problem, V)
+
+    autograd_res = AutogradExtensions(problem).ggn_mat_prod(mat_list)
+    backpack_res = BackpackExtensions(problem).ggn_mat_prod(mat_list)
+
+    check_sizes_and_values(autograd_res, backpack_res)
+    problem.tear_down()
+
+
 MC_ATOL = 1e-3
 MC_RTOL = 1e-2
+MC_SAMPLES = 300000
+MC_CHUNKS = 10
 
 
 @pytest.mark.expensive
@@ -52,10 +74,38 @@ def test_ggn_mc(problem, subsampling):
     problem.set_up()
 
     autograd_res = AutogradExtensions(problem).ggn(subsampling=subsampling)
-    mc_samples = 300000
     backpack_res = BackpackExtensions(problem).ggn_mc_chunk(
-        mc_samples, subsampling=subsampling
+        MC_SAMPLES, chunks=MC_CHUNKS, subsampling=subsampling
     )
 
     check_sizes_and_values(autograd_res, backpack_res, atol=MC_ATOL, rtol=MC_RTOL)
     problem.tear_down()
+
+
+@pytest.mark.expensive
+@pytest.mark.parametrize("problem", PROBLEMS, ids=IDS)
+def test_ggn_mc_mat_prod(problem, V=3):
+    """Compare GGN multiplication with multiplication by its MC-approximated factors.
+
+    Args:
+        V (int, optional): Number of vectors to multiply with in parallel.
+    """
+    problem.set_up()
+
+    mat_list = rand_mat_list_like_parameters(problem, V)
+
+    autograd_res = AutogradExtensions(problem).ggn_mat_prod(mat_list)
+    backpack_res = BackpackExtensions(problem).ggn_mc_mat_prod_chunk(
+        mat_list, mc_samples=MC_SAMPLES, chunks=MC_CHUNKS
+    )
+
+    check_sizes_and_values(autograd_res, backpack_res, atol=MC_ATOL, rtol=MC_RTOL)
+    problem.tear_down()
+
+
+def rand_mat_list_like_parameters(problem, V):
+    """Create list of random matrix with same trailing dimensions as parameters."""
+    return [
+        torch.rand(V, *p.shape, device=problem.device)
+        for p in problem.model.parameters()
+    ]

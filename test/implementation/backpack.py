@@ -20,6 +20,7 @@ from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
     GramSqrtGGNExact,
     GramSqrtGGNMC,
 )
+from lowrank.utils.ggn import V_mat_prod, V_t_mat_prod
 
 
 class BackpackExtensions(ExtensionsImplementation):
@@ -66,11 +67,7 @@ class BackpackExtensions(ExtensionsImplementation):
 
     def ggn_mc_chunk(self, mc_samples, chunks=10, subsampling=None):
         """Like ``ggn_mc``, but handles larger number of samples by chunking."""
-        chunk_samples = (chunks - 1) * [mc_samples // chunks]
-        last_samples = mc_samples - sum(chunk_samples)
-        if last_samples != 0:
-            chunk_samples.append(last_samples)
-
+        chunk_samples = self.chunk_sizes(mc_samples, chunks)
         chunk_weights = [samples / mc_samples for samples in chunk_samples]
 
         ggn_mc = None
@@ -169,3 +166,97 @@ class BackpackExtensions(ExtensionsImplementation):
             loss.backward()
             diag_h = [p.diag_h for p in self.problem.model.parameters()]
         return diag_h
+
+    def ggn_mat_prod(self, mat_list):
+        """Vectorized multiplication with the Generalized Gauss-Newton/Fisher.
+
+        Uses multiplication with symmetric factors ``V``, ``Vᵀ``, and ``G = V @ Vᵀ``.
+
+        Args:
+            mat_list ([torch.Tensor]): Layer-wise split of matrices to be multiplied
+                by the GGN. Each item has a free leading dimension, and shares the
+                same trailing dimensions with the associated parameter.
+
+        Returns:
+            [torch.Tensor]: Result of multiplication with the GGN
+        """
+        with backpack(SqrtGGNExact()):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_exact")
+
+    def _V_V_t_mat_prod(self, mat_list, savefield):
+        """Multiply with the GGN's symmetric factors ``V`` and ``Vᵀ``.
+
+        Args:
+            mat_list ([torch.Tensor]): Layer-wise split of matrices to be multiplied
+                by the GGN. Each item has a free leading dimension, and shares the
+                same trailing dimensions with the associated parameter.
+            savefield (str): Attribute under which ``Vᵀ`` is saved in the parameters.
+
+        Returns:
+            [torch.Tensor]: Result of multiplication with ``V @ Vᵀ``.
+        """
+        parameters = list(self.problem.model.parameters())
+
+        result = V_t_mat_prod(mat_list, parameters, savefield)
+        result = V_mat_prod(result, parameters, savefield)
+
+        return result
+
+    def ggn_mc_mat_prod(self, mat_list, mc_samples):
+        """Vectorized multiplication with the MC Generalized Gauss-Newton/Fisher.
+
+        Uses multiplication with symmetric factors ``V``, ``Vᵀ``, and ``G = V @ Vᵀ``.
+
+        Args:
+            mat_list ([torch.Tensor]): Layer-wise split of matrices to be multiplied
+                by the GGN. Each item has a free leading dimension, and shares the
+                same trailing dimensions with the associated parameter.
+            mc_samples (int): Number of MC samples used to approximate the GGN.
+
+        Returns:
+            [torch.Tensor]: Result of multiplication with the MC-approximated GGN
+        """
+        with backpack(SqrtGGNMC(mc_samples=mc_samples)):
+            _, _, loss = self.problem.forward_pass()
+            loss.backward()
+
+        return self._V_V_t_mat_prod(mat_list, "sqrt_ggn_mc")
+
+    def ggn_mc_mat_prod_chunk(self, mat_list, mc_samples, chunks=10):
+        """Like ``ggn_mc_mat_prod``, but handles larger number of samples by chunking."""
+        chunk_samples = self.chunk_sizes(mc_samples, chunks)
+        chunk_weights = [samples / mc_samples for samples in chunk_samples]
+
+        ggn_mc_mat = [None for _ in mat_list]
+
+        for weight, samples in zip(chunk_weights, chunk_samples):
+            chunk_ggn_mc_mat = self.ggn_mc_mat_prod(mat_list, samples)
+            chunk_ggn_mc_mat = [weight * ggn_mc_m for ggn_mc_m in chunk_ggn_mc_mat]
+
+            # update existing ggn_mc_mats
+            for idx, res in enumerate(chunk_ggn_mc_mat):
+                old_res = ggn_mc_mat[idx]
+                new_res = res if old_res is None else old_res + res
+
+                ggn_mc_mat[idx] = new_res
+
+        return ggn_mc_mat
+
+    @staticmethod
+    def chunk_sizes(total_size, num_chunks):
+        """Return list containing the sizes of chunks."""
+        chunk_size = max(total_size // num_chunks, 1)
+
+        if chunk_size == 1:
+            sizes = total_size * [chunk_size]
+        else:
+            equal, rest = divmod(total_size, chunk_size)
+            sizes = equal * [chunk_size]
+
+            if rest != 0:
+                sizes.append(rest)
+
+        return sizes
