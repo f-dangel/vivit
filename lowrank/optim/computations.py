@@ -11,6 +11,7 @@ from lowrank.utils.gram import (
     sqrt_gram_mat_prod,
     sqrt_gram_t_mat_prod,
 )
+from lowrank.utils.subsampling import merge_subsamplings
 
 
 class BaseComputations:
@@ -72,7 +73,6 @@ class BaseComputations:
                 ``with backpack(...)`` context. ``None`` signifies no action will be
                 performed.
         """
-        self._no_groups(param_groups)
         return None
 
     def get_extensions(self, param_groups):
@@ -85,31 +85,30 @@ class BaseComputations:
             [backpack.extensions.backprop_extension.BackpropExtension]: List of
                 extensions that can be handed into a ``with backpack(...)`` context.
         """
-        self._no_groups(param_groups)
-        # NOTE Special care has to be taken if the same curvatures are used.
-        # Samples need to be properly merged. These checks avoid this situation
-        # TODO Allow subsampling. Requires logic to merge subsamplings.
-        self._no_subsampling()
-        # TODO Allow different curvatures. Requires logic to set up returned list.
-        self._same_second_order()
+        extensions = []
 
-        second_order_extension_cls = tuple(
-            {
-                self._extension_cls_directions,
-                self._extension_cls_second,
-            }
-        )[0]
-        second_order_subsampling = tuple(
-            {
-                self._subsampling_directions,
-                self._subsampling_second,
-            }
-        )[0]
+        # first-order
+        extensions.append(
+            self._extension_cls_first(subsampling=self._subsampling_first)
+        )
 
-        return [
-            self._extension_cls_first(subsampling=self._subsampling_first),
-            second_order_extension_cls(subsampling=second_order_subsampling),
-        ]
+        # second-order and directions
+        if self._extension_cls_second == self._extension_cls_directions:
+            subsampling_merged = merge_subsamplings(
+                self._subsampling_directions, self._subsampling_second
+            )
+            extensions.append(
+                self._extension_cls_second(subsampling=subsampling_merged)
+            )
+        else:
+            extensions.append(
+                self._extension_cls_second(subsampling=self._subsampling_second)
+            )
+            extensions.append(
+                self._extension_cls_directions(subsampling=self._subsampling_directions)
+            )
+
+        return extensions
 
     def _no_subsampling(self):
         """Raise exception if subsampling is enabled.
@@ -134,22 +133,6 @@ class BaseComputations:
         if self._extension_cls_second != self._extension_cls_directions:
             raise ValueError("Different second-order extensions are not supported.")
 
-    def _no_groups(self, param_groups):
-        """Raise exception if multiple parameter groups are used.
-
-        Args:
-            param_groups (dict): Parameter group dictionary from a
-                ``torch.optim.Optimizer``.
-
-        Raises:
-            ValueError: If multiple groups are used.
-        """
-        allowed = 1
-        groups = len(param_groups)
-
-        if groups != allowed:
-            raise ValueError(f"{allowed} parameter group(s) allowed. Got {groups}.")
-
     def compute_step(self, group, damping, savefield):
         """Compute the damped Newton update and save it as attribute in each parameter.
 
@@ -160,6 +143,13 @@ class BaseComputations:
             savefield (str): Attribute name under which the step will be saved in a
                 parameter.
         """
+        # NOTE Special care has to be taken if the same curvatures are used.
+        # Samples need to be properly merged. These checks avoid this situation
+        # TODO Allow subsampling. Requires logic to merge subsamplings.
+        self._no_subsampling()
+        # TODO Allow different curvatures. Requires logic to set up returned list.
+        self._same_second_order()
+
         params = group["params"]
         start_dim = 2
 
