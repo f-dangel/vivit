@@ -19,28 +19,17 @@ for problem, id_str in zip(PROBLEMS, IDS):
         PROBLEMS_REDUCTION_MEAN.append(problem)
         IDS_REDUCTION_MEAN.append(id_str)
 
-GGN_SUBSAMPLINGS = [
-    None,
-    [0],
-    [0, 0],
-]
+GGN_SUBSAMPLINGS = [None, [0], [0, 0]]
 GGN_SUBSAMPLINGS_IDS = [
     f"ggn_subsampling={subsampling}" for subsampling in GGN_SUBSAMPLINGS
 ]
-GRAD_SUBSAMPLINGS = [
-    None,
-    [0],
-    [0, 0],
-]
+
+GRAD_SUBSAMPLINGS = [None, [0], [0, 0]]
 GRAD_SUBSAMPLINGS_IDS = [
     f"grad_subsampling={subsampling}" for subsampling in GRAD_SUBSAMPLINGS
 ]
 
-TOP_SPACES = [
-    0.0,
-    0.1,
-    0.3,
-]
+TOP_SPACES = [0.0, 0.1, 0.3]
 TOP_SPACES_IDS = [f"top_space={top_space}" for top_space in TOP_SPACES]
 
 
