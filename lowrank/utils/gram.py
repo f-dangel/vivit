@@ -18,11 +18,11 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
             unflattened tensor of dimension ``2 * start_dim``.
 
     Returns:
-        torch.Tensor: If ``reshape=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
+        torch.Tensor: If ``flatten=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``tensor``.
 
-            If ``reshape=False`` a tensor of shape ``[*(dᵢ), *(dᵢ)]``
+            If ``flatten=False`` a tensor of shape ``[*(dᵢ), *(dᵢ)]``
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``tensor``.
     """
@@ -38,6 +38,32 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
         result = reshape_as_square(result)
 
     return result
+
+
+def pairwise2_dot(tensor, other, start_dim=1):
+    """Compute pairwise scalar products between two tensors.
+
+    Args:
+        tensor (torch.Tensor): A tensor whose vector slices are paired with
+            slices of ``other``.
+        other (torch.Tensor): A tensor whose vector slices are paired with
+            slices of ``tensor``.
+        start_dim (int): Start dimension of contraction for scalar product.
+
+    Returns:
+        torch.Tensor: A tensor of shape ``[*(tensorᵢ), *(otherⱼ)]`` where `i, j``
+            range from ``0`` to ``start_dim - 1``. ``tensorᵢ`` is the ``i``th
+            dimension of ``tensor``, and ``otherⱼ`` is the ``j`` dimension of
+            ``other``.
+    """
+    letters = get_letters(start_dim + tensor.dim())
+    out1_idx = letters[:start_dim]
+    out2_idx = letters[start_dim : 2 * start_dim]
+    sum_idx = letters[2 * start_dim :]
+
+    equation = f"{out1_idx}{sum_idx},{out2_idx}{sum_idx}->{out1_idx}{out2_idx}"
+
+    return torch.einsum(equation, tensor, other)
 
 
 def get_letters(num_letters):

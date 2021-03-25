@@ -2,22 +2,10 @@
 
 from test.implementation.autograd import AutogradExtensions
 from test.implementation.backpack import BackpackExtensions
-from test.problem import make_test_problems
-from test.settings import SETTINGS
+from test.optim.settings import IDS_REDUCTION_MEAN, PROBLEMS_REDUCTION_MEAN
 from test.utils import check_sizes_and_values
 
 import pytest
-
-PROBLEMS = make_test_problems(SETTINGS)
-IDS = [problem.make_id() for problem in PROBLEMS]
-
-PROBLEMS_REDUCTION_MEAN = []
-IDS_REDUCTION_MEAN = []
-
-for problem, id_str in zip(PROBLEMS, IDS):
-    if problem.reduction_string() == "mean":
-        PROBLEMS_REDUCTION_MEAN.append(problem)
-        IDS_REDUCTION_MEAN.append(id_str)
 
 GGN_SUBSAMPLINGS = [None, [0], [0, 0]]
 GGN_SUBSAMPLINGS_IDS = [

@@ -258,7 +258,7 @@ class AutogradExtensions(ExtensionsImplementation):
 
             return ggn_vec_list
 
-    def gammas_ggn(self, top_space=0.1, ggn_subsampling=None, grad_subsampling=None):
+    def gammas_ggn(self, top_space, ggn_subsampling=None, grad_subsampling=None):
         """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
 
         Args:
@@ -300,3 +300,55 @@ class AutogradExtensions(ExtensionsImplementation):
         gammas = torch.einsum("ni,id->nd", individual_gradients, evecs) / evals.sqrt()
 
         return gammas
+
+    def lambdas_ggn(self, top_space, ggn_subsampling=None, lambda_subsampling=None):
+        """Second-order derivatives ``λ[n, d]`` along the leading GGN eigenvectors.
+
+        Uses the exact GGN for λ.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+            lambda_subsampling ([int], optional): Sample indices used for lambdas.
+
+        Returns:
+            torch.Tensor: 2d tensor containing ``λ[n, d]``.
+        """
+        N, _ = self._mean_reduction()
+        ggn = self.ggn(subsampling=ggn_subsampling)
+
+        # compensate subsampling scale
+        if ggn_subsampling is not None:
+            ggn *= N / len(ggn_subsampling)
+
+        evals, evecs = ggn.symeig(eigenvectors=True)
+
+        # select top eigenspace
+        num_evecs = int(
+            top_space * self._ggn_num_nontrivial_evals(subsampling=ggn_subsampling)
+        )
+        num_evecs = max(num_evecs, 1)
+        evals = evals[-num_evecs:]
+        evecs = evecs[:, -num_evecs:]
+
+        if lambda_subsampling is None:
+            lambda_subsampling = list(range(N))
+
+        D = evals.numel()
+        N_lambda = len(lambda_subsampling)
+
+        lambdas = torch.zeros(N_lambda, D, device=ggn.device)
+
+        for out_idx, n in enumerate(lambda_subsampling):
+            ggn_n = self.ggn(subsampling=[n])
+
+            # compensate subsampling scale
+            ggn_n *= N
+
+            ggn_n_evecs = torch.einsum("ij,jd->id", ggn_n, evecs)
+            lambdas_n = torch.einsum("id,id->d", evecs, ggn_n_evecs)
+
+            lambdas[out_idx] = lambdas_n
+
+        return lambdas

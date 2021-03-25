@@ -3,7 +3,7 @@
 import einops
 import torch
 
-from lowrank.utils.gram import get_letters, pairwise_dot
+from lowrank.utils.gram import get_letters, pairwise2_dot, pairwise_dot
 
 
 def V_t_mat_prod(mat_list, parameters, savefield, subsampling=None, flatten=False):
@@ -242,3 +242,57 @@ def _param_V_t_V(param, savefield, subsampling=None):
     V_t = _get_V_t(param, savefield, subsampling=subsampling)
 
     return pairwise_dot(V_t, start_dim=start_dim, flatten=False)
+
+
+def V1_t_V2(parameters, savefield1, savefield2, subsampling1=None, subsampling2=None):
+    """Compute the overlap ``V₁ᵀ V₂`` between two GGN factors.
+
+    Args:
+        parameters (iterable): Sequence of parameters whose GGN(MC) factors are used.
+        savefield1 (str): Attribute under which ``V₁ᵀ`` is stored.
+        savefield2 (str): Attribute under which ``V₂ᵀ`` is stored.
+        subsampling1 ([int], optional): Sample indices to be used of ``V₁ᵀ``. ``None``
+            uses all available samples.
+        subsampling2 ([int], optional): Sample indices to be used of ``V₂ᵀ``. ``None``
+            uses all available samples.
+
+    Returns:
+        torch.Tensor: Overlap matrix of shape ``[C₁, N₁, C₂, N₂]``, where ``Cₙ`` and
+            ``Nₙ`` are the classes and samples used to represent ``Vₙᵀ``.
+    """
+    return sum(
+        _param_V1_t_V2(
+            p,
+            savefield1,
+            savefield2,
+            subsampling1=subsampling1,
+            subsampling2=subsampling2,
+        )
+        for p in parameters
+    )
+
+
+def _param_V1_t_V2(param, savefield1, savefield2, subsampling1=None, subsampling2=None):
+    """Compute overlap ``V₁ᵀ V₂`` between two GGN factors restricted to one parameter.
+
+    Args:
+        param (torch.nn.Parameter): Parameter whose GGN(MC) factors are used.
+        savefield1 (str): Attribute under which ``V₁ᵀ`` is stored.
+        savefield2 (str): Attribute under which ``V₂ᵀ`` is stored.
+        subsampling1 ([int], optional): Sample indices to be used of ``V₁ᵀ``. ``None``
+            uses all available samples.
+        subsampling2 ([int], optional): Sample indices to be used of ``V₂ᵀ``. ``None``
+            uses all available samples.
+
+    Returns:
+        torch.Tensor: Overlap matrix of shape ``[C₁, N₁, C₂, N₂]``, where ``Cₙ`` and
+            ``Nₙ`` are the classes and samples used to represent ``Vₙᵀ``.
+    """
+    start_dim = 2
+    for savefield in [savefield1, savefield2]:
+        assert savefield in ["sqrt_ggn_mc", "sqrt_ggn_exact"], "Only GGN factors"
+
+    V1_t = _get_V_t(param, savefield1, subsampling=subsampling1)
+    V2_t = _get_V_t(param, savefield2, subsampling=subsampling2)
+
+    return pairwise2_dot(V1_t, V2_t, start_dim=start_dim)

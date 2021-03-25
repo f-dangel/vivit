@@ -21,7 +21,7 @@ from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
     GramSqrtGGNExact,
     GramSqrtGGNMC,
 )
-from lowrank.utils.ggn import V_mat_prod, V_t_mat_prod, V_t_V
+from lowrank.utils.ggn import V1_t_V2, V_mat_prod, V_t_mat_prod, V_t_V
 from lowrank.utils.gram import reshape_as_square
 
 
@@ -331,3 +331,65 @@ class BackpackExtensions(ExtensionsImplementation):
         gammas = torch.einsum("ni,id->nd", V_t_g, evecs) / evals
 
         return gammas
+
+    def lambdas_ggn(self, top_space, ggn_subsampling=None, lambda_subsampling=None):
+        """Second-order derivatives ``λ[n, d]`` along the leading GGN eigenvectors.
+
+        Uses the exact GGN for λ.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+            lambda_subsampling ([int], optional): Sample indices used for lambdas.
+
+        Returns:
+            torch.Tensor: 2d tensor containing ``λ[n, d]``.
+        """
+        N, _ = self._mean_reduction()
+
+        # create savefield buffers
+        self.sqrt_ggn()
+        savefield = "sqrt_ggn_exact"
+        gram = V_t_V(
+            self.problem.model.parameters(), savefield, subsampling=ggn_subsampling
+        )
+
+        # compensate subsampling scale
+        if ggn_subsampling is not None:
+            gram *= N / len(ggn_subsampling)
+
+        evals, evecs = reshape_as_square(gram).symeig(eigenvectors=True)
+
+        # select top eigenspace
+        num_evecs = int(
+            top_space * self._ggn_num_nontrivial_evals(subsampling=ggn_subsampling)
+        )
+        num_evecs = max(num_evecs, 1)
+        evals = evals[-num_evecs:]
+        evecs = evecs[:, -num_evecs:]
+
+        V_n_t_V = V1_t_V2(
+            self.problem.model.parameters(),
+            savefield,
+            savefield,
+            subsampling1=lambda_subsampling,
+            subsampling2=ggn_subsampling,
+        )
+        V_n_t_V = V_n_t_V.flatten(start_dim=2)
+
+        # compensate scale
+        scale = math.sqrt(N)
+
+        if ggn_subsampling is not None:
+            scale *= math.sqrt(N / len(ggn_subsampling))
+
+        V_n_t_V *= scale
+
+        # compute lambdas
+        V_n_t_V_evecs = torch.einsum("cni,id->cnd", V_n_t_V, evecs)
+        C_axis = 0
+
+        lambdas = (V_n_t_V_evecs ** 2).sum(C_axis) / evals
+
+        return lambdas
