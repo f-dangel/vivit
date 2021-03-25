@@ -57,7 +57,10 @@ def test_ggn_mat_prod(problem, subsampling, V=3):
         mat_list, subsampling=subsampling
     )
 
-    check_sizes_and_values(autograd_res, backpack_res)
+    atol = 1e-6
+    rtol = 1e-5
+
+    check_sizes_and_values(autograd_res, backpack_res, atol=atol, rtol=rtol)
     problem.tear_down()
 
 
