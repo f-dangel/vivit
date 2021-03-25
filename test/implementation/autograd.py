@@ -257,3 +257,46 @@ class AutogradExtensions(ExtensionsImplementation):
                     ggn_vec_list[idx] = new_res
 
             return ggn_vec_list
+
+    def gammas_ggn(self, top_space=0.1, ggn_subsampling=None, grad_subsampling=None):
+        """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+            grad_subsampling ([int], optional): Sample indices used for individual
+                gradients.
+
+        Returns:
+            torch.Tensor: 2d tensor containing ``γ[n, d]``.
+        """
+        N, _ = self._mean_reduction()
+
+        ggn = self.ggn(subsampling=ggn_subsampling)
+
+        # compensate subsampling scale
+        if ggn_subsampling is not None:
+            ggn *= N / len(ggn_subsampling)
+
+        evals, evecs = ggn.symeig(eigenvectors=True)
+
+        # select top eigenspace
+        num_evecs = int(
+            top_space * self._ggn_num_nontrivial_evals(subsampling=ggn_subsampling)
+        )
+        num_evecs = max(num_evecs, 1)
+        evals = evals[-num_evecs:]
+        evecs = evecs[:, -num_evecs:]
+
+        grad_batch = self.batch_grad(subsampling=grad_subsampling)
+        # compensate individual gradient scaling from BackPACK
+        individual_gradients = [g * N for g in grad_batch]
+        # flattened individual gradients
+        individual_gradients = torch.cat(
+            [g.flatten(start_dim=1) for g in individual_gradients], dim=1
+        )
+
+        gammas = torch.einsum("ni,id->nd", individual_gradients, evecs) / evals.sqrt()
+
+        return gammas

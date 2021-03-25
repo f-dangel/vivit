@@ -4,6 +4,7 @@ Note:
     This file is (almost) a copy of
     https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/backpack.py#L1-L84 # noqa: B950
 """
+import math
 from test.implementation.base import ExtensionsImplementation
 
 import backpack.extensions as new_ext
@@ -20,7 +21,8 @@ from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
     GramSqrtGGNExact,
     GramSqrtGGNMC,
 )
-from lowrank.utils.ggn import V_mat_prod, V_t_mat_prod
+from lowrank.utils.ggn import V_mat_prod, V_t_mat_prod, V_t_V
+from lowrank.utils.gram import reshape_as_square
 
 
 class BackpackExtensions(ExtensionsImplementation):
@@ -118,8 +120,8 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return hook.get_result()
 
-    def batch_grad(self):
-        with backpack(new_ext.BatchGrad()):
+    def batch_grad(self, subsampling=None):
+        with backpack(new_ext.BatchGrad(subsampling=subsampling)):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
             batch_grads = [p.grad_batch for p in self.problem.model.parameters()]
@@ -271,3 +273,61 @@ class BackpackExtensions(ExtensionsImplementation):
                 sizes.append(rest)
 
         return sizes
+
+    def gammas_ggn(self, top_space, ggn_subsampling=None, grad_subsampling=None):
+        """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+            grad_subsampling ([int], optional): Sample indices used for individual
+                gradients.
+
+        Returns:
+            torch.Tensor: 2d tensor containing ``γ[n, d]``.
+        """
+        N, _ = self._mean_reduction()
+
+        # create savefield buffers
+        self.sqrt_ggn()
+        savefield = "sqrt_ggn_exact"
+        gram = V_t_V(
+            self.problem.model.parameters(), savefield, subsampling=ggn_subsampling
+        )
+
+        # compensate subsampling scale
+        if ggn_subsampling is not None:
+            gram *= N / len(ggn_subsampling)
+
+        evals, evecs = reshape_as_square(gram).symeig(eigenvectors=True)
+
+        # select top eigenspace
+        num_evecs = int(
+            top_space * self._ggn_num_nontrivial_evals(subsampling=ggn_subsampling)
+        )
+        num_evecs = max(num_evecs, 1)
+        evals = evals[-num_evecs:]
+        evecs = evecs[:, -num_evecs:]
+
+        # flattened individual gradients
+        grad_batch = self.batch_grad(subsampling=grad_subsampling)
+
+        # compensate individual gradient scaling from BackPACK
+        individual_gradients = [g * N for g in grad_batch]
+
+        V_t_g = V_t_mat_prod(
+            individual_gradients,
+            list(self.problem.model.parameters()),
+            savefield,
+            subsampling=ggn_subsampling,
+            flatten=True,
+        )
+
+        # compensate subsampling scale from multiplication with ``Vᵀ``
+        if ggn_subsampling is not None:
+            V_t_g *= math.sqrt(N / len(ggn_subsampling))
+
+        gammas = torch.einsum("ni,id->nd", V_t_g, evecs) / evals
+
+        return gammas

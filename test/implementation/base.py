@@ -5,6 +5,7 @@ Note:
     https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/base.py#L1-L33 # noqa: B950
 """
 
+import numpy
 import torch
 
 
@@ -85,3 +86,29 @@ class ExtensionsImplementation:
     def ggn_mc(self, mc_samples):
         """MC approximation of the Generalized Gauss-Newton matrix."""
         raise NotImplementedError
+
+    def _mean_reduction(self):
+        """Assert reduction of loss function to be ``'mean'``."""
+        N = self.problem.input.shape[0]
+        reduction_factor = self.problem.compute_reduction_factor()
+
+        print(1 / N)
+        print(reduction_factor)
+        assert numpy.isclose(1.0 / N, reduction_factor), "Reduction is not 'mean'"
+
+        return N, reduction_factor
+
+    def _ggn_num_nontrivial_evals(self, subsampling=None):
+        """Return maximum number of nontrivial GGN eigenvalues."""
+        D = sum(p.numel() for p in self.problem.model.parameters())
+
+        _, output, _ = self.problem.forward_pass()
+        C = output[0].numel()
+
+        if subsampling is None:
+            N = self.problem.input.shape[0]
+            num_evals = C * N
+        else:
+            num_evals = C * len(subsampling)
+
+        return min(num_evals, D)

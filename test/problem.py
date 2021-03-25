@@ -162,3 +162,14 @@ class ExtensionsTestProblem:
             loss_list[n] = loss_n
 
         return self.get_reduction_factor(loss, loss_list)
+
+    def reduction_string(self):
+        """Return string of loss function reduction.
+
+        Returns:
+            str: Reduction string. ``'unknown'`` if the string cannot be retrieved.
+        """
+        try:
+            return self.loss_function_fn().reduction
+        except AttributeError:
+            return "unknown"

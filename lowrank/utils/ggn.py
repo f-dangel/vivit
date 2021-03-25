@@ -1,8 +1,9 @@
 """Vectorized multiplication with the GGN(MC) symmetric factors (square roots)."""
 
+import einops
 import torch
 
-from lowrank.utils.gram import get_letters
+from lowrank.utils.gram import get_letters, pairwise_dot
 
 
 def V_t_mat_prod(mat_list, parameters, savefield, subsampling=None, flatten=False):
@@ -39,7 +40,7 @@ def V_t_mat_prod(mat_list, parameters, savefield, subsampling=None, flatten=Fals
     assert len(mat_list) == len(parameters), "Matrices must have length of parameters."
 
     result = sum(
-        _V_param_t_mat_prod(p, mat, savefield, subsampling=subsampling)
+        _param_V_t_mat_prod(p, mat, savefield, subsampling=subsampling)
         for p, mat in zip(parameters, mat_list)
     )
 
@@ -49,11 +50,11 @@ def V_t_mat_prod(mat_list, parameters, savefield, subsampling=None, flatten=Fals
     return result
 
 
-def _V_param_t_mat_prod(param, mat, savefield, subsampling=None):
+def _param_V_t_mat_prod(param, mat, savefield, subsampling=None):
     """Multiply with the GGN(MC) matrix square root ``Vᵀ`` defined by ``param``.
 
     Args:
-        param (torch.nn.Parameter): Parameter defining``Vᵀ```.
+        param (torch.nn.Parameter): Parameter defining ``Vᵀ``.
         mat (torch.Tensor): Matrix to be multiplied with ``Vᵀ``.
         savefield (str): Attribute under which ``Vᵀ`` is stored in ``param``.
         subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
@@ -123,7 +124,7 @@ def _get_V_t(param, savefield, subsampling=None):
     """Fetch the GGN(MC) matrix square root ``Vᵀ`` with active samples.
 
     Args:
-        param (torch.nn.Parameter): Parameter defining``Vᵀ```.
+        param (torch.nn.Parameter): Parameter defining ``Vᵀ``.
         savefield (str): Attribute under which ``Vᵀ`` is stored in a parameter.
         subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
             available samples.
@@ -143,7 +144,7 @@ def V_param_mat_prod(param, mat, savefield, subsampling=None):
     """Multiply with the GGN(MC) matrix square root ``V`` defined by ``param``.
 
     Args:
-        param (torch.nn.Parameter): Parameter defining``Vᵀ```.
+        param (torch.nn.Parameter): Parameter defining ``Vᵀ``.
         mat (torch.Tensor): Matrix to be multiplied with ``V``.
         savefield (str): Attribute under which ``Vᵀ`` is stored in ``param``.
         subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
@@ -196,3 +197,48 @@ def _same_shape(tensor_list, start=0, end=-1):
         raise ValueError(
             f"Got non-unique shapes comparing dims {start} to including {end}: {unique}"
         )
+
+
+def V_t_V(parameters, savefield, subsampling=None, flatten=False):
+    """Compute the Gram matrix ``Vᵀ V``.
+
+    Args:
+        parameters (iterable): Sequence of parameters whose GGN(MC) factors are used.
+        savefield (str): Attribute under which ``Vᵀ`` and ``V`` are stored.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ, V``. ``None`` uses all
+            available samples.
+        flatten (bool): Whether to flatten the output dimensions ``[C, N]`` into
+            ``[C * N]``. Default: ``False``.
+
+    Returns:
+        torch.Tensor: Gram matrix. If ``flatten`` is ``True``, the shape is
+            ``[C, N, C, N]``, else ``[C * N, C * N]``.
+    """
+    result = sum(
+        _param_V_t_V(p, savefield, subsampling=subsampling) for p in parameters
+    )
+
+    if flatten:
+        result = einops.rearrange("c n d m -> (c n) (d m)", result)
+
+    return result
+
+
+def _param_V_t_V(param, savefield, subsampling=None):
+    """Compute the Gram matrix ``Vᵀ V``.
+
+    Args:
+        param (torch.nn.Parameter): Parameter defining ``Vᵀ`` and ``V``.
+        savefield (str): Attribute under which ``Vᵀ`` and ``V`` are stored.
+        subsampling ([int]): Sample indices to be used of ``Vᵀ, V``. ``None`` uses all
+            available samples.
+
+    Returns:
+        torch.Tensor: Gram matrix of shape ``[C, N, C, N]``.
+    """
+    start_dim = 2
+    assert savefield in ["sqrt_ggn_mc", "sqrt_ggn_exact"], "Only GGN factors"
+
+    V_t = _get_V_t(param, savefield, subsampling=subsampling)
+
+    return pairwise_dot(V_t, start_dim=start_dim, flatten=False)
