@@ -31,29 +31,27 @@ class AutogradExtensions(ExtensionsImplementation):
         batch_grad_flat = self._batch_grad_flat()
         return torch.einsum("if,jf->ij", batch_grad_flat, batch_grad_flat)
 
-    def batch_grad(self):
-        N = self.problem.input.shape[0]
-        batch_grads = [
-            torch.zeros(N, *p.size()).to(self.problem.device)
+    def batch_grad(self, subsampling=None):
+        batch_size = self.problem.input.shape[0]
+
+        if subsampling is None:
+            subsampling = list(range(batch_size))
+
+        batch_grad = [
+            torch.zeros(len(subsampling), *p.size()).to(self.problem.device)
             for p in self.problem.model.parameters()
         ]
+        factor = self.problem.compute_reduction_factor()
 
-        loss_list = torch.zeros((N))
-        gradients_list = []
-        for b in range(N):
-            _, _, loss = self.problem.forward_pass(sample_idx=b)
-            gradients = torch.autograd.grad(loss, self.problem.model.parameters())
-            gradients_list.append(gradients)
-            loss_list[b] = loss
+        for out_idx, n in enumerate(subsampling):
+            _, _, loss_n = self.problem.forward_pass(sample_idx=n)
+            loss_n *= factor
+            grad_n = torch.autograd.grad(loss_n, self.problem.model.parameters())
 
-        _, _, batch_loss = self.problem.forward_pass()
-        factor = self.problem.get_reduction_factor(batch_loss, loss_list)
+            for param_idx, g_n in enumerate(grad_n):
+                batch_grad[param_idx][out_idx] = g_n.detach()
 
-        for b, gradients in zip(range(N), gradients_list):
-            for idx, g in enumerate(gradients):
-                batch_grads[idx][b, :] = g.detach() * factor
-
-        return batch_grads
+        return batch_grad
 
     def batch_l2_grad(self):
         batch_grad = self.batch_grad()
