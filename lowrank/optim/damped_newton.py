@@ -121,6 +121,6 @@ class DampedNewton(torch.optim.Optimizer):
             num_evals = len(evals)
             num_keep = min(num_evals, k)
 
-            return [num_evals - 1 - idx for idx in range(num_keep)]
+            return [num_evals - num_keep + idx for idx in range(num_keep)]
 
         return top_k
