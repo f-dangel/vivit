@@ -14,7 +14,7 @@ class DampedNewton(torch.optim.Optimizer):
 
     SAVEFIELD = "damped_newton_step"
 
-    def __init__(self, parameters, damping, computations):
+    def __init__(self, parameters, damping, computations, criterion=None):
         """Initialize the optimizer, specifying the damping damping and sample split.
 
         Args:
@@ -25,8 +25,16 @@ class DampedNewton(torch.optim.Optimizer):
             computations (lowrank.optim.computations.BaseComputations): Assignment of
                 mini-batch samples to the different computational tasks (finding
                 directions, computing first- and second-order derivatives along them).
+            criterion (callable, optional): Maps eigenvalues to indices of eigenvalues
+                that will be kept as directions. Default: Largest two eigenvalues of a
+                group. Assumes eigenvalues to be sorted in ascending order.
         """
-        super().__init__(parameters, defaults={})
+        if criterion is None:
+            criterion = self.make_default_criterion()
+
+        defaults = dict(criterion=criterion)
+
+        super().__init__(parameters, defaults=defaults)
 
         self._damping = damping
         self._computations = computations
@@ -85,3 +93,34 @@ class DampedNewton(torch.optim.Optimizer):
             for param in group["params"]:
                 if hasattr(param, self.SAVEFIELD):
                     delattr(param, self.SAVEFIELD)
+
+    @staticmethod
+    def make_default_criterion(k=2):
+        """Return the default criterion which eigenvalues be used as directions.
+
+        Args:
+            k (int, optional): Number of leading eigenvalues to be kept by the
+                criterion. Default: ``2``.
+
+        Returns:
+            criterion (callable): Maps eigenvalues to indices of eigenvalues that will
+                be kept as directions. Default: Largest two eigenvalues of a group.
+        """
+
+        def top_k(evals):
+            """Keep the k largest two eigenvalues.
+
+            Assumes eigenvalues to be sorted in ascending order.
+
+            Args:
+                evals (torch.Tensor): Eigenvalues.
+
+            Returns:
+                [int]: Indices of two leading eigenvalues.
+            """
+            num_evals = len(evals)
+            num_keep = min(num_evals, k)
+
+            return [num_evals - 1 - idx for idx in range(num_keep)]
+
+        return top_k
