@@ -292,6 +292,7 @@ class AutogradExtensions(ExtensionsImplementation):
         grad_batch = self.batch_grad(subsampling=grad_subsampling)
         # compensate individual gradient scaling from BackPACK
         individual_gradients = [g * N for g in grad_batch]
+
         # flattened individual gradients
         individual_gradients = torch.cat(
             [g.flatten(start_dim=1) for g in individual_gradients], dim=1
