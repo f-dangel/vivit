@@ -106,7 +106,7 @@ def V_mat_prod(mat, parameters, savefield, subsampling=None, concat=False):
             a list of tensors with same length as ``parameters`` and shape ``[F, *ᵢ]``
             is returned (``*ᵢ`` is the shape of parameter ``i``).
     """
-    assert mat.dim() == 3, "mat must be [F, C, N]. Got {mat.dim()} dimensions."
+    assert mat.dim() == 3, f"mat must be [F, C, N]. Got {mat.dim()} dimensions."
 
     result = [
         V_param_mat_prod(p, mat, savefield, subsampling=subsampling) for p in parameters
