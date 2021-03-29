@@ -1,5 +1,6 @@
 """Assigning mini-batch samples in a mini-batch to computations."""
 
+import math
 from functools import partial
 
 import torch
@@ -262,6 +263,10 @@ class BaseComputations:
         C, N = gram_mat.shape[:2]
 
         V_n_T_V = gram_mat.reshape(C, N, C * N)
+
+        # compensate scale of V_n
+        V_n_T_V *= math.sqrt(N)
+
         V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, gram_evecs)
 
         lambdas = (V_n_T_V_e_d ** 2).sum(0) / gram_evals
