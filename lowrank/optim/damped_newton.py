@@ -36,6 +36,8 @@ class DampedNewton(torch.optim.Optimizer):
 
         super().__init__(parameters, defaults=defaults)
 
+        assert len(self.param_groups) == 1, "Parameter groups need tests"
+
         self._damping = damping
         self._computations = computations
 
