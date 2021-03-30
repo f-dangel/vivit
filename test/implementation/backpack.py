@@ -328,7 +328,7 @@ class BackpackExtensions(ExtensionsImplementation):
         if ggn_subsampling is not None:
             V_t_g *= math.sqrt(N / len(ggn_subsampling))
 
-        gammas = torch.einsum("ni,id->nd", V_t_g, evecs) / evals
+        gammas = torch.einsum("ni,id->nd", V_t_g, evecs) / evals.sqrt()
 
         return gammas
 

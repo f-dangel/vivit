@@ -230,7 +230,7 @@ class BaseComputations:
         V_t_g_n = self._V_t_mat_prod[group_id](g_n, flatten=True)
         gammas = (
             torch.einsum("ni,id->nd", V_t_g_n, self._gram_evecs[group_id])
-            / self._gram_evals[group_id]
+            / self._gram_evals[group_id].sqrt()
         )
 
         self._gammas[group_id] = gammas
