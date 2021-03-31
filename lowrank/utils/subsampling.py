@@ -1,6 +1,24 @@
 """Utility functions for subsampling."""
 
 
+def is_subset(subsampling, reference):
+    """Return whether indices specified by ``subsampling`` are subset of the reference.
+
+    Args:
+        subsampling ([int] or None): Sample indices
+        reference ([int] or None): Reference set.
+
+    Returns:
+        bool: Whether all indices are contained in the reference set.
+    """
+    if reference is None:
+        return True
+    elif subsampling is None and reference is not None:
+        return False
+    else:
+        return set(subsampling).issubset(set(reference))
+
+
 def sample_output_mapping(idx_samples, idx_all):
     """Return access indices for sub-sampled BackPACK quantities.
 
@@ -27,9 +45,14 @@ def sample_output_mapping(idx_samples, idx_all):
         Then, ``[∇f₃] = grad_batch[mapping]``.
 
     Returns:
-        [int]: Index mapping for samples to output index.
+        [int] or None: Index mapping for samples to output index. ``None`` if the
+            mapping is the identity.
+
+    Raises:
+         ValueError: If one of the requested samples is not contained in all samples.
     """
-    assert idx_samples is not None
+    if not is_subset(idx_samples, idx_all):
+        raise ValueError(f"Requested samples {idx_samples} must be subset of {idx_all}")
 
     if idx_all is None:
         mapping = idx_samples
@@ -39,25 +62,67 @@ def sample_output_mapping(idx_samples, idx_all):
     return mapping
 
 
-def merge_subsamplings(subsampling1, subsampling2):
+def merge_subsamplings(subsampling, other):
     """Merge indices of sub-samplings, removing duplicates and sorting indices.
 
     Args:
-        subsampling1 ([int] or None): Sub-sampling indices for use in a BackPACK
+        subsampling ([int] or None): Sub-sampling indices for use in a BackPACK
             extension as ``subsampling`` argument.
-        subsampling2 ([int] or None): Sub-sampling indices for use in a BackPACK
+        other ([int] or None): Sub-sampling indices for use in a BackPACK
             extension as ``subsampling`` argument.
 
     Returns:
         [int]: Indices corresponding to the merged sub-samplings.
     """
-    merged = None
-
-    if subsampling1 is not None and subsampling2 is not None:
-
-        for subsampling in (subsampling1, subsampling2):
-            assert isinstance(subsampling, list), "Must be list"
-
-        merged = sorted(set(subsampling1 + subsampling2))
+    if subsampling is None or other is None:
+        merged = None
+    else:
+        merged = sorted(set(subsampling).union(set(other)))
 
     return merged
+
+
+def merge_multiple_subsamplings(*subsamplings):
+    """Merge a sequence of sub-samplings, removing duplicates and sorting indices.
+
+    Args:
+        subsamplings ([[int] or None]): Sub-sampling sequence.
+
+    Returns:
+        [int]: Indices corresponding to the merged sub-samplings.
+
+    Raises:
+        ValueError: If no arguments are handed in
+    """
+    if len(subsamplings) == 0:
+        raise ValueError("Expecting one or more inputs. Got {subsamplings}.")
+
+    subsampling = []
+
+    for other in subsamplings:
+        subsampling = merge_subsamplings(subsampling, other)
+
+    return subsampling
+
+
+def merge_extensions(extension_subsampling_list):
+    """Combine subsamplings of same extensions.
+
+    Args:
+        extension_subsampling_list ([(BackpropExtension, [int] or None)]: List of
+            extension-subsampling tuples to be merged.
+
+    Returns:
+        dict: Keys are extension classes, values are subsamplings.
+    """
+    unique = {extension for (extension, _) in extension_subsampling_list}
+
+    merged_subsamplings = {}
+
+    for extension in unique:
+        subsamplings = [
+            sub for (ext, sub) in extension_subsampling_list if ext == extension
+        ]
+        merged_subsamplings[extension] = merge_multiple_subsamplings(*subsamplings)
+
+    return merged_subsamplings
