@@ -9,7 +9,7 @@ from lowrank.optim.damped_newton import DampedNewton
 
 
 class BackpackOptimExtensions(BackpackExtensions):
-    def gammas_ggn(self, top_k):
+    def gammas_ggn(self, top_k, subsampling_first=None):
         """First-order directional derivatives along leading GGN eigenvectors via
         ``lowrank.optim.computations``.
 
@@ -17,17 +17,19 @@ class BackpackOptimExtensions(BackpackExtensions):
             top_k (int): Number of leading eigenvectors used as directions. Will be
                 clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
                 eigenvalues.
+            subsampling_first ([int], optional): Sample indices used for individual
+                gradients.
         """
         k = self._ggn_convert_to_top_k(top_k)
 
         param_groups = self._param_groups_top_k_criterion(k)
-        computations = BaseComputations()
+        computations = BaseComputations(subsampling_first=subsampling_first)
 
         _, _, loss = self.problem.forward_pass()
 
         with backpack(
             *computations.get_extensions(param_groups),
-            extension_hook=computations.get_extension_hook(param_groups)
+            extension_hook=computations.get_extension_hook(param_groups),
         ):
             loss.backward()
 

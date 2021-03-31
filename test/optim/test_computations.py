@@ -10,10 +10,20 @@ import pytest
 TOP_K = [1, 5]
 TOP_K_IDS = [f"top_k={k}" for k in TOP_K]
 
+SUBSAMPLINGS_FIRST = [
+    None,
+    [0],
+    [0, 0, 1, 0, 1],
+]
+SUBSAMPLINGS_FIRST_IDS = [f"subsampling_first={sub}" for sub in SUBSAMPLINGS_FIRST]
 
+
+@pytest.mark.parametrize(
+    "subsampling_first", SUBSAMPLINGS_FIRST, ids=SUBSAMPLINGS_FIRST_IDS
+)
 @pytest.mark.parametrize("top_k", TOP_K, ids=TOP_K_IDS)
 @pytest.mark.parametrize("problem", PROBLEMS_REDUCTION_MEAN, ids=IDS_REDUCTION_MEAN)
-def test_computations_gammas_ggn(problem, top_k):
+def test_computations_gammas_ggn(problem, top_k, subsampling_first):
     """Compare optimizer's 1st-order directional derivatives ``γ[n, d]`` along leading
     GGN eigenvectors with autograd.
 
@@ -21,11 +31,17 @@ def test_computations_gammas_ggn(problem, top_k):
         problem (ExtensionsTestProblem): Test case.
         top_k (int): Number of leading eigenvectors used as directions. Will be clipped
             to ``[1, max]`` with ``max`` the maximum number of nontrivial eigenvalues.
+        subsampling_first ([int], optional): Sample indices used for individual
+            gradients.
     """
     problem.set_up()
 
-    autograd_res = AutogradOptimExtensions(problem).gammas_ggn(top_k)
-    backpack_res = BackpackOptimExtensions(problem).gammas_ggn(top_k)
+    autograd_res = AutogradOptimExtensions(problem).gammas_ggn(
+        top_k, subsampling_first=subsampling_first
+    )
+    backpack_res = BackpackOptimExtensions(problem).gammas_ggn(
+        top_k, subsampling_first=subsampling_first
+    )
 
     # the directions can sometimes point in the opposite direction, leading
     # to gammas of same magnitude but opposite sign.

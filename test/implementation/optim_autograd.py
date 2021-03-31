@@ -6,15 +6,17 @@ from test.implementation.autograd import AutogradExtensions
 class AutogradOptimExtensions(AutogradExtensions):
     """Autograd implementation of optimizer functionality with similar API."""
 
-    def gammas_ggn(self, top_k):
+    def gammas_ggn(self, top_k, subsampling_first=None):
         """First-order directional derivatives along the top-k GGN eigenvectors.
 
         Args:
             top_k (int): Number of leading eigenvectors used as directions. Will be
                 clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
                 eigenvalues.
+            subsampling_first ([int], optional): Sample indices used for individual
+                gradients.
         """
-        return super().gammas_ggn(top_k)
+        return super().gammas_ggn(top_k, grad_subsampling=subsampling_first)
 
     def lambdas_ggn(self, top_k):
         """Second-order directional derivatives along the top-k GGN eigenvectors.
