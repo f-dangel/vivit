@@ -382,7 +382,7 @@ class BaseComputations:
         gammas_mean = gammas.mean(batch_axis)
 
         # TODO Choose lambda: Either from directions, or second derivatives
-        use_lambda_from_directions = True
+        use_lambda_from_directions = False
         if use_lambda_from_directions:
             lambdas_mean = gram_evals
         else:
