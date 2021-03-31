@@ -4,18 +4,24 @@ from test.implementation.autograd import AutogradExtensions
 
 
 class AutogradOptimExtensions(AutogradExtensions):
-    def gammas_ggn(self, k):
-        """First-order directional derivatives via ``lowrank.optim.computations``.
+    """Autograd implementation of optimizer functionality with similar API."""
 
-        Use top-k eigenvectors as directions.
+    def gammas_ggn(self, top_k):
+        """First-order directional derivatives along the top-k GGN eigenvectors.
+
+        Args:
+            top_k (int): Number of leading eigenvectors used as directions. Will be
+                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
+                eigenvalues.
         """
-        assert k == 1, "Currently only supports k=1"
-        return super().gammas_ggn(0.0)
+        return super().gammas_ggn(top_k)
 
-    def lambdas_ggn(self, k):
-        """First-order directional derivatives via ``lowrank.optim.computations``.
+    def lambdas_ggn(self, top_k):
+        """Second-order directional derivatives along the top-k GGN eigenvectors.
 
-        Use top-k eigenvectors as directions.
+        Args:
+            top_k (int): Number of leading eigenvectors used as directions. Will be
+                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
+                eigenvalues.
         """
-        assert k == 1, "Currently only supports k=1"
-        return super().lambdas_ggn(0.0)
+        return super().lambdas_ggn(top_k)

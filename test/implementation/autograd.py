@@ -262,8 +262,11 @@ class AutogradExtensions(ExtensionsImplementation):
         """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
 
         Args:
-            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+            top_space (float or int): If integer, describes the absolute number of top
+                non-trivial eigenvalues to be considered at most. If float, describes
+                the relative number (ratio between 0. and 1., relative to the nontrivial
                 eigenspace) of leading eigenvectors that will be used as directions.
+                Uses at least one, and at most all nontrivial eigenvalues.
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
             grad_subsampling ([int], optional): Sample indices used for individual
                 gradients.
@@ -282,11 +285,8 @@ class AutogradExtensions(ExtensionsImplementation):
         _, evecs = ggn.symeig(eigenvectors=True)
 
         # select top eigenspace
-        num_evecs = int(
-            top_space * self._ggn_num_nontrivial_evals(subsampling=ggn_subsampling)
-        )
-        num_evecs = max(num_evecs, 1)
-        evecs = evecs[:, -num_evecs:]
+        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=ggn_subsampling)
+        evecs = evecs[:, -k:]
 
         grad_batch = self.batch_grad(subsampling=grad_subsampling)
         # compensate individual gradient scaling from BackPACK
@@ -325,12 +325,9 @@ class AutogradExtensions(ExtensionsImplementation):
         evals, evecs = ggn.symeig(eigenvectors=True)
 
         # select top eigenspace
-        num_evecs = int(
-            top_space * self._ggn_num_nontrivial_evals(subsampling=ggn_subsampling)
-        )
-        num_evecs = max(num_evecs, 1)
-        evals = evals[-num_evecs:]
-        evecs = evecs[:, -num_evecs:]
+        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=ggn_subsampling)
+        evals = evals[-k:]
+        evecs = evecs[:, -k:]
 
         if lambda_subsampling is None:
             lambda_subsampling = list(range(N))

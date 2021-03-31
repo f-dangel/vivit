@@ -7,17 +7,25 @@ from test.utils import check_sizes_and_values
 
 import pytest
 
+TOP_K = [1, 5]
+TOP_K_IDS = [f"top_k={k}" for k in TOP_K]
 
+
+@pytest.mark.parametrize("top_k", TOP_K, ids=TOP_K_IDS)
 @pytest.mark.parametrize("problem", PROBLEMS_REDUCTION_MEAN, ids=IDS_REDUCTION_MEAN)
-def test_optim_gammas_ggn_top_1(problem):
+def test_computations_gammas_ggn(problem, top_k):
     """Compare optimizer's 1st-order directional derivatives ``γ[n, d]`` along leading
-    eigenvector with autograd.
+    GGN eigenvectors with autograd.
+
+    Args:
+        problem (ExtensionsTestProblem): Test case.
+        top_k (int): Number of leading eigenvectors used as directions. Will be clipped
+            to ``[1, max]`` with ``max`` the maximum number of nontrivial eigenvalues.
     """
     problem.set_up()
 
-    k = 1
-    autograd_res = AutogradOptimExtensions(problem).gammas_ggn(k)
-    backpack_res = BackpackOptimExtensions(problem).gammas_ggn(k)
+    autograd_res = AutogradOptimExtensions(problem).gammas_ggn(top_k)
+    backpack_res = BackpackOptimExtensions(problem).gammas_ggn(top_k)
 
     # the directions can sometimes point in the opposite direction, leading
     # to gammas of same magnitude but opposite sign.
@@ -31,16 +39,21 @@ def test_optim_gammas_ggn_top_1(problem):
     problem.tear_down()
 
 
+@pytest.mark.parametrize("top_k", TOP_K, ids=TOP_K_IDS)
 @pytest.mark.parametrize("problem", PROBLEMS_REDUCTION_MEAN, ids=IDS_REDUCTION_MEAN)
-def test_optim_lambdas_ggn_top_1(problem):
+def test_computations_lambdas_ggn(problem, top_k):
     """Compare optimizer's 2nd-order directional derivatives ``λ[n, d]`` along leading
-    eigenvector with autograd.
+    GGN eigenvectors with autograd.
+
+    Args:
+        problem (ExtensionsTestProblem): Test case.
+        top_k (int): Number of leading eigenvectors used as directions. Will be clipped
+            to ``[1, max]`` with ``max`` the maximum number of nontrivial eigenvalues.
     """
     problem.set_up()
 
-    k = 1
-    autograd_res = AutogradOptimExtensions(problem).lambdas_ggn(k)
-    backpack_res = BackpackOptimExtensions(problem).lambdas_ggn(k)
+    autograd_res = AutogradOptimExtensions(problem).lambdas_ggn(top_k)
+    backpack_res = BackpackOptimExtensions(problem).lambdas_ggn(top_k)
 
     check_sizes_and_values(autograd_res, backpack_res)
     problem.tear_down()

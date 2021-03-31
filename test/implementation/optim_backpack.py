@@ -9,11 +9,17 @@ from lowrank.optim.damped_newton import DampedNewton
 
 
 class BackpackOptimExtensions(BackpackExtensions):
-    def gammas_ggn(self, k):
-        """First-order directional derivatives via ``lowrank.optim.computations``.
+    def gammas_ggn(self, top_k):
+        """First-order directional derivatives along leading GGN eigenvectors via
+        ``lowrank.optim.computations``.
 
-        Use top-k eigenvectors as directions.
+        Args:
+            top_k (int): Number of leading eigenvectors used as directions. Will be
+                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
+                eigenvalues.
         """
+        k = self._ggn_convert_to_top_k(top_k)
+
         param_groups = self._param_groups_top_k_criterion(k)
         computations = BaseComputations()
 
@@ -29,11 +35,17 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         return list(computations._gammas.values())[0]
 
-    def lambdas_ggn(self, k):
-        """Second-order directional derivatives via ``lowrank.optim.computations``.
+    def lambdas_ggn(self, top_k):
+        """Second-order directional derivatives along leading GGN eigenvectors via
+        ``lowrank.optim.computations``.
 
-        Use top-k eigenvectors as directions.
+        Args:
+            top_k (int): Number of leading eigenvectors used as directions. Will be
+                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
+                eigenvalues.
         """
+        k = self._ggn_convert_to_top_k(top_k)
+
         param_groups = self._param_groups_top_k_criterion(k)
         computations = BaseComputations()
 
