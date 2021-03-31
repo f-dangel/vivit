@@ -18,12 +18,14 @@ class AutogradOptimExtensions(AutogradExtensions):
         """
         return super().gammas_ggn(top_k, grad_subsampling=subsampling_first)
 
-    def lambdas_ggn(self, top_k):
+    def lambdas_ggn(self, top_k, subsampling_second=None):
         """Second-order directional derivatives along the top-k GGN eigenvectors.
 
         Args:
             top_k (int): Number of leading eigenvectors used as directions. Will be
                 clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
                 eigenvalues.
+            subsampling_second ([int], optional): Sample indices used for individual
+                curvature matrices.
         """
-        return super().lambdas_ggn(top_k)
+        return super().lambdas_ggn(top_k, lambda_subsampling=subsampling_second)

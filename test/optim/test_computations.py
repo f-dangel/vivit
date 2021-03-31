@@ -17,6 +17,13 @@ SUBSAMPLINGS_FIRST = [
 ]
 SUBSAMPLINGS_FIRST_IDS = [f"subsampling_first={sub}" for sub in SUBSAMPLINGS_FIRST]
 
+SUBSAMPLINGS_SECOND = [
+    None,
+    [0],
+    [0, 0, 1, 0, 1],
+]
+SUBSAMPLINGS_SECOND_IDS = [f"subsampling_second={sub}" for sub in SUBSAMPLINGS_SECOND]
+
 
 @pytest.mark.parametrize(
     "subsampling_first", SUBSAMPLINGS_FIRST, ids=SUBSAMPLINGS_FIRST_IDS
@@ -55,9 +62,12 @@ def test_computations_gammas_ggn(problem, top_k, subsampling_first):
     problem.tear_down()
 
 
+@pytest.mark.parametrize(
+    "subsampling_second", SUBSAMPLINGS_SECOND, ids=SUBSAMPLINGS_SECOND_IDS
+)
 @pytest.mark.parametrize("top_k", TOP_K, ids=TOP_K_IDS)
 @pytest.mark.parametrize("problem", PROBLEMS_REDUCTION_MEAN, ids=IDS_REDUCTION_MEAN)
-def test_computations_lambdas_ggn(problem, top_k):
+def test_computations_lambdas_ggn(problem, top_k, subsampling_second):
     """Compare optimizer's 2nd-order directional derivatives ``λ[n, d]`` along leading
     GGN eigenvectors with autograd.
 
@@ -65,11 +75,17 @@ def test_computations_lambdas_ggn(problem, top_k):
         problem (ExtensionsTestProblem): Test case.
         top_k (int): Number of leading eigenvectors used as directions. Will be clipped
             to ``[1, max]`` with ``max`` the maximum number of nontrivial eigenvalues.
+        subsampling_second ([int], optional): Sample indices used for individual
+            curvature matrices.
     """
     problem.set_up()
 
-    autograd_res = AutogradOptimExtensions(problem).lambdas_ggn(top_k)
-    backpack_res = BackpackOptimExtensions(problem).lambdas_ggn(top_k)
+    autograd_res = AutogradOptimExtensions(problem).lambdas_ggn(
+        top_k, subsampling_second=subsampling_second
+    )
+    backpack_res = BackpackOptimExtensions(problem).lambdas_ggn(
+        top_k, subsampling_second=subsampling_second
+    )
 
     check_sizes_and_values(autograd_res, backpack_res)
     problem.tear_down()

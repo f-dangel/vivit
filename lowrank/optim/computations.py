@@ -185,7 +185,7 @@ class BaseComputations:
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
         """
         # TODO Allow subsampling. Requires logic to merge subsamplings.
-        self._no_curvature_subsampling()
+        self._no_direction_subsampling()
 
         params = group["params"]
         savefield = self._extension_cls_directions().savefield
@@ -266,7 +266,7 @@ class BaseComputations:
         # NOTE Special care has to be taken if the same curvatures are used.
         # Samples need to be properly merged. These checks avoid this situation
         # TODO Allow subsampling. Requires logic to merge subsamplings.
-        self._no_curvature_subsampling()
+        self._no_direction_subsampling()
         # TODO Allow different curvatures. Requires logic to set up returned list.
         self._same_second_order()
 
@@ -277,11 +277,14 @@ class BaseComputations:
         gram_mat = self._gram_mat[group_id]
 
         C, N = gram_mat.shape[:2]
-
         V_n_T_V = gram_mat.reshape(C, N, C * N)
 
+        if self._subsampling_second is not None:
+            V_n_T_V = V_n_T_V[:, self._subsampling_second, :]
+
         # compensate scale of V_n
-        V_n_T_V *= math.sqrt(N)
+        batch_size = self._batch_size[group_id]
+        V_n_T_V *= math.sqrt(batch_size)
 
         V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, gram_evecs)
 
@@ -424,18 +427,23 @@ class BaseComputations:
         ]:
             buffer.pop(group_id)
 
-    def _no_curvature_subsampling(self):
-        """Raise exception if subsampling is enabled for curvature.
+    def _no_second_subsampling(self):
+        """Raise exception if sub-sampling is enabled for second-order derivatives.
 
         Raises:
-            ValueError: If subsampling is enabled.
+            ValueError: If sub-sampling is enabled.
         """
-        for subsampling in [
-            self._subsampling_directions,
-            self._subsampling_second,
-        ]:
-            if subsampling is not None:
-                raise ValueError("Subsampling is not supported.")
+        if self._subsampling_second is not None:
+            raise ValueError("Second-order sub-sampling is not supported.")
+
+    def _no_direction_subsampling(self):
+        """Raise exception if sub-sampling is enabled for directions.
+
+        Raises:
+            ValueError: If sub-sampling is enabled.
+        """
+        if self._subsampling_directions is not None:
+            raise ValueError("Direction sub-sampling is not supported.")
 
     def _same_second_order(self):
         """Raise exception if different curvature second-order is used.
