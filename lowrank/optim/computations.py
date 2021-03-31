@@ -400,9 +400,13 @@ class BaseComputations:
         gram_step = (
             -gammas_mean / (lambdas_mean + deltas) / gram_evals.sqrt() * gram_evecs
         ).sum(1)
-        C, N = gram_mat.shape[:2]
-        gram_step = gram_step.reshape(1, C, N)
+        C, N_dir = gram_mat.shape[:2]
+        gram_step = gram_step.reshape(1, C, N_dir)
         newton_step = [V_g.squeeze(0) for V_g in V_mp(gram_step)]
+
+        # compensate scale of V
+        N = self._batch_size[group_id]
+        newton_step = [math.sqrt(N / N_dir) * step for step in newton_step]
 
         self._newton_step[group_id] = newton_step
 

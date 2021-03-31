@@ -258,7 +258,9 @@ class AutogradExtensions(ExtensionsImplementation):
 
             return ggn_vec_list
 
-    def gammas_ggn(self, top_space, ggn_subsampling=None, grad_subsampling=None):
+    def gammas_ggn(
+        self, top_space, ggn_subsampling=None, grad_subsampling=None, directions=False
+    ):
         """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
 
         Args:
@@ -270,9 +272,11 @@ class AutogradExtensions(ExtensionsImplementation):
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
             grad_subsampling ([int], optional): Sample indices used for individual
                 gradients.
+            directions (bool, optional): Whether to return the directions, too.
 
         Returns:
-            torch.Tensor: 2d tensor containing ``γ[n, d]``.
+            torch.Tensor: 2d tensor containing ``γ[n, d]`` if ``directions=False``.
+                Else, a second tensor containing the eigenvectors is returned.
         """
         N, _ = self._mean_reduction()
         _, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
@@ -288,7 +292,10 @@ class AutogradExtensions(ExtensionsImplementation):
 
         gammas = torch.einsum("ni,id->nd", individual_gradients, evecs)
 
-        return gammas
+        if directions:
+            return gammas, evecs
+        else:
+            return gammas
 
     def lambdas_ggn(self, top_space, ggn_subsampling=None, lambda_subsampling=None):
         """Second-order derivatives ``λ[n, d]`` along the leading GGN eigenvectors.
