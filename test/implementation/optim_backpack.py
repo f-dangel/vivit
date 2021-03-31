@@ -9,7 +9,7 @@ from lowrank.optim.damped_newton import DampedNewton
 
 
 class BackpackOptimExtensions(BackpackExtensions):
-    def gammas_ggn(self, top_k, subsampling_first=None):
+    def gammas_ggn(self, top_k, subsampling_directions=None, subsampling_first=None):
         """First-order directional derivatives along leading GGN eigenvectors via
         ``lowrank.optim.computations``.
 
@@ -17,13 +17,18 @@ class BackpackOptimExtensions(BackpackExtensions):
             top_k (int): Number of leading eigenvectors used as directions. Will be
                 clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
                 eigenvalues.
+            subsampling_directions ([int] or None): Indices of samples used to compute
+                Newton directions. If ``None``, all samples in the batch will be used.
             subsampling_first ([int], optional): Sample indices used for individual
                 gradients.
         """
         k = self._ggn_convert_to_top_k(top_k)
 
         param_groups = self._param_groups_top_k_criterion(k)
-        computations = BaseComputations(subsampling_first=subsampling_first)
+        computations = BaseComputations(
+            subsampling_directions=subsampling_directions,
+            subsampling_first=subsampling_first,
+        )
 
         _, _, loss = self.problem.forward_pass()
 
@@ -40,7 +45,7 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         return list(computations._gammas.values())[0]
 
-    def lambdas_ggn(self, top_k, subsampling_second=None):
+    def lambdas_ggn(self, top_k, subsampling_directions=None, subsampling_second=None):
         """Second-order directional derivatives along leading GGN eigenvectors via
         ``lowrank.optim.computations``.
 
@@ -48,13 +53,18 @@ class BackpackOptimExtensions(BackpackExtensions):
             top_k (int): Number of leading eigenvectors used as directions. Will be
                 clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
                 eigenvalues.
+            subsampling_directions ([int] or None): Indices of samples used to compute
+                Newton directions. If ``None``, all samples in the batch will be used.
             subsampling_second ([int], optional): Sample indices used for individual
                 curvature matrices.
         """
         k = self._ggn_convert_to_top_k(top_k)
 
         param_groups = self._param_groups_top_k_criterion(k)
-        computations = BaseComputations(subsampling_second=subsampling_second)
+        computations = BaseComputations(
+            subsampling_directions=subsampling_directions,
+            subsampling_second=subsampling_second,
+        )
 
         _, _, loss = self.problem.forward_pass()
 
