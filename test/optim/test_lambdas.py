@@ -27,13 +27,13 @@ TOP_SPACES_IDS = [f"top_space={top_space}" for top_space in TOP_SPACES]
     "lambda_subsampling", LAMBDA_SUBSAMPLINGS, ids=LAMBDA_SUBSAMPLINGS_IDS
 )
 @pytest.mark.parametrize("problem", PROBLEMS_REDUCTION_MEAN, ids=IDS_REDUCTION_MEAN)
-def test_gamma_ggn(
+def test_lambdas_ggn(
     problem,
     top_space,
     ggn_subsampling,
     lambda_subsampling,
 ):
-    """Compare first-order directional derivatives ``γ[n, d]`` with autograd.
+    """Compare second-order directional derivatives ``λ[n, d]`` with autograd.
 
     Args:
         top_space (float): Ratio (between 0 and 1, relative to the nontrivial
@@ -55,10 +55,5 @@ def test_gamma_ggn(
         lambda_subsampling=lambda_subsampling,
     )
 
-    # rtol = 5e-3
-    # atol = 1e-5
-    rtol = 1e-5
-    atol = 1e-7
-
-    check_sizes_and_values(autolambda_res, backpack_res, atol=atol, rtol=rtol)
+    check_sizes_and_values(autolambda_res, backpack_res)
     problem.tear_down()
