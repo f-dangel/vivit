@@ -109,8 +109,8 @@ def merge_extensions(extension_subsampling_list):
     """Combine subsamplings of same extensions.
 
     Args:
-        extension_subsampling_list ([(BackpropExtension, [int] or None)]: List of
-            extension-subsampling tuples to be merged.
+        extension_subsampling_list ([tuple]): List of extension-subsampling
+            pairs to be merged.
 
     Returns:
         dict: Keys are extension classes, values are subsamplings.
