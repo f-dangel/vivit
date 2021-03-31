@@ -275,18 +275,7 @@ class AutogradExtensions(ExtensionsImplementation):
             torch.Tensor: 2d tensor containing ``γ[n, d]``.
         """
         N, _ = self._mean_reduction()
-
-        ggn = self.ggn(subsampling=ggn_subsampling)
-
-        # compensate subsampling scale
-        if ggn_subsampling is not None:
-            ggn *= N / len(ggn_subsampling)
-
-        _, evecs = ggn.symeig(eigenvectors=True)
-
-        # select top eigenspace
-        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=ggn_subsampling)
-        evecs = evecs[:, -k:]
+        _, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
 
         grad_batch = self.batch_grad(subsampling=grad_subsampling)
         # compensate individual gradient scaling from BackPACK
@@ -316,18 +305,7 @@ class AutogradExtensions(ExtensionsImplementation):
             torch.Tensor: 2d tensor containing ``λ[n, d]``.
         """
         N, _ = self._mean_reduction()
-        ggn = self.ggn(subsampling=ggn_subsampling)
-
-        # compensate subsampling scale
-        if ggn_subsampling is not None:
-            ggn *= N / len(ggn_subsampling)
-
-        evals, evecs = ggn.symeig(eigenvectors=True)
-
-        # select top eigenspace
-        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=ggn_subsampling)
-        evals = evals[-k:]
-        evecs = evecs[:, -k:]
+        evals, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
 
         if lambda_subsampling is None:
             lambda_subsampling = list(range(N))
@@ -335,7 +313,7 @@ class AutogradExtensions(ExtensionsImplementation):
         D = evals.numel()
         N_lambda = len(lambda_subsampling)
 
-        lambdas = torch.zeros(N_lambda, D, device=ggn.device)
+        lambdas = torch.zeros(N_lambda, D, device=evals.device)
 
         for out_idx, n in enumerate(lambda_subsampling):
             ggn_n = self.ggn(subsampling=[n])
@@ -349,3 +327,32 @@ class AutogradExtensions(ExtensionsImplementation):
             lambdas[out_idx] = lambdas_n
 
         return lambdas
+
+    def directions_ggn(self, top_space, subsampling=None):
+        """Compute the leading GGN eigenvalues and eigenvectors.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+
+        Returns:
+            (torch.Tensor, torch.Tensor): First tensor are the leading GGN eigenvalues,
+                sorted in ascending order. Second tensor are the associated
+                eigenvectors as a column-stacked matrix.
+        """
+        N, _ = self._mean_reduction()
+        ggn = self.ggn(subsampling=subsampling)
+
+        # compensate subsampling scale
+        if subsampling is not None:
+            ggn *= N / len(subsampling)
+
+        evals, evecs = ggn.symeig(eigenvectors=True)
+
+        # select top eigenspace
+        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=subsampling)
+        evals = evals[-k:]
+        evecs = evecs[:, -k:]
+
+        return evals, evecs
