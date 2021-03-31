@@ -55,5 +55,8 @@ def test_lambdas_ggn(
         lambda_subsampling=lambda_subsampling,
     )
 
-    check_sizes_and_values(autolambda_res, backpack_res)
+    atol = 1e-7
+    rtol = 1e-5
+
+    check_sizes_and_values(autolambda_res, backpack_res, atol=atol, rtol=rtol)
     problem.tear_down()
