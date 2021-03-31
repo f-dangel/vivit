@@ -25,7 +25,10 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         _, _, loss = self.problem.forward_pass()
 
-        with backpack(*computations.get_extensions(param_groups)):
+        with backpack(
+            *computations.get_extensions(param_groups),
+            extension_hook=computations.get_extension_hook(param_groups)
+        ):
             loss.backward()
 
         for group in param_groups:

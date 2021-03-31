@@ -70,6 +70,7 @@ class BaseComputations:
         self._lambdas = {}
         self._deltas = {}
         self._newton_step = {}
+        self._batch_size = {}
 
     def get_extension_hook(self, param_groups):
         """Return hook to be executed right after a BackPACK extension during backprop.
@@ -82,7 +83,24 @@ class BaseComputations:
                 ``with backpack(...)`` context. ``None`` signifies no action will be
                 performed.
         """
-        return None
+
+        def hook_store_batch_size(module):
+            """Store batch size internally.
+
+            Modifies ``self._batch_size``.
+
+            Args:
+                module (torch.nn.Module): The module on which the hook is executed.
+            """
+            if self._batch_size == {}:
+                batch_axis = 0
+                batch_size = module.input0.shape[batch_axis]
+
+                for group in param_groups:
+                    group_id = id(group)
+                    self._batch_size[group_id] = batch_size
+
+        return hook_store_batch_size
 
     def get_extensions(self, param_groups):
         """Return the instantiated BackPACK extensions required in the backward pass.
@@ -224,7 +242,7 @@ class BaseComputations:
 
         savefield = self._extension_cls_first().savefield
         g_n = [getattr(p, savefield) for p in params]
-        N = g_n[0].shape[0]
+        N = self._batch_size[group_id]
         g_n = [N * g for g in g_n]
 
         V_t_g_n = self._V_t_mat_prod[group_id](g_n, flatten=True)
@@ -404,6 +422,7 @@ class BaseComputations:
             self._lambdas,
             self._deltas,
             self._newton_step,
+            self._batch_size,
         ]:
             buffer.pop(group_id)
 

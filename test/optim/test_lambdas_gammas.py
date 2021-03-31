@@ -408,7 +408,10 @@ def test_lambda_gamma(MSE_reduction, delta, seed_val):
 
     # Forward and backward pass
     loss = loss_func(model(X), torch.zeros(N, OUT_2))
-    with backpack(*computations.get_extensions(param_groups)):
+    with backpack(
+        *computations.get_extensions(param_groups),
+        extension_hook=computations.get_extension_hook(param_groups),
+    ):
         loss.backward()
 
     # Computation of γ and λ
