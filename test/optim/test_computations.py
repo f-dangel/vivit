@@ -8,7 +8,6 @@ from test.utils import check_sizes_and_values
 import pytest
 
 from lowrank.optim.damping import ConstantDamping
-from lowrank.utils.subsampling import is_subset
 
 TOP_K = [1, 5]
 TOP_K_IDS = [f"top_k={k}" for k in TOP_K]
@@ -116,16 +115,6 @@ def test_computations_lambdas_ggn(
     """
     problem.set_up()
 
-    # TODO This requires more scalar products be evaluated
-    if not is_subset(subsampling_second, subsampling_directions):
-        with pytest.raises(NotImplementedError):
-            backpack_res = BackpackOptimExtensions(problem).lambdas_ggn(
-                top_k,
-                subsampling_directions=subsampling_directions,
-                subsampling_second=subsampling_second,
-            )
-        return
-
     autograd_res = AutogradOptimExtensions(problem).lambdas_ggn(
         top_k,
         subsampling_directions=subsampling_directions,
@@ -177,18 +166,6 @@ def test_computations_newton_step(
             curvature matrices.
     """
     problem.set_up()
-
-    # TODO This requires more scalar products be evaluated
-    if not is_subset(subsampling_second, subsampling_directions):
-        with pytest.raises(NotImplementedError):
-            backpack_res = BackpackOptimExtensions(problem).newton_step(
-                top_k,
-                damping,
-                subsampling_directions=subsampling_directions,
-                subsampling_first=subsampling_first,
-                subsampling_second=subsampling_second,
-            )
-        return
 
     autograd_res = AutogradOptimExtensions(problem).newton_step(
         top_k,

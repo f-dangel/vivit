@@ -1,13 +1,14 @@
 """Assigning mini-batch samples in a mini-batch to computations."""
 
 import math
+import warnings
 from functools import partial
 
 import torch
 from backpack.extensions import BatchGrad
 
 from lowrank.extensions import SqrtGGNExact
-from lowrank.utils.ggn import V_mat_prod, V_t_mat_prod, V_t_V
+from lowrank.utils.ggn import V1_t_V2, V_mat_prod, V_t_mat_prod, V_t_V
 from lowrank.utils.gram import reshape_as_square
 from lowrank.utils.subsampling import is_subset, merge_extensions, sample_output_mapping
 
@@ -304,22 +305,46 @@ class BaseComputations:
         gram_evecs = self._gram_evecs[group_id]
         gram_mat = self._gram_mat[group_id]
 
+        C_dir, N_dir = gram_mat.shape[:2]
+        batch_size = self._batch_size[group_id]
+
         if self._extension_cls_directions == self._extension_cls_second:
-            C, N_dir = gram_mat.shape[:2]
-            V_n_T_V = gram_mat.reshape(C, N_dir, C * N_dir)
-
-            # compensate scale of V_n
-            V_n_T_V *= math.sqrt(N_dir)
-
             # all info computed, just slice the relevant info
             if is_subset(self._subsampling_second, self._subsampling_directions):
+                V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
+
                 idx = sample_output_mapping(
                     self._subsampling_second, self._subsampling_directions
                 )
                 if idx is not None:
                     V_n_T_V = V_n_T_V[:, idx, :]
+
+                # compensate scale of V_n
+                V_n_T_V *= math.sqrt(N_dir)
+
             else:
-                raise NotImplementedError("Need to compute more scalar products")
+                # TODO Recycle scalar products that are available from the Gram matrix
+                # and only compute the missing ones
+                warnings.warn(
+                    "If subsampling_second is not a subset of subsampling_directions,"
+                    + " all required dot products will be re-evaluated. This is not"
+                    + " the most efficient, but less complex implementation."
+                )
+
+                # re-compute everything, easier but less efficient
+                V_n_T_V = V1_t_V2(
+                    group["params"],
+                    self._savefield_second,
+                    self._savefield_directions,
+                    subsampling1=self._access_second,
+                    subsampling2=self._access_directions,
+                )
+                C_second, N_second = V_n_T_V.shape[:2]
+                V_n_T_V = V_n_T_V.reshape(C_second, N_second, C_dir * N_dir)
+
+                # compensate scale of V_n
+                V_n_T_V *= batch_size / math.sqrt(N_dir)
+
         else:
             raise NotImplementedError(
                 "Different extensions for (directions, second) not supported."
