@@ -42,7 +42,8 @@ def test_GramBatchGrad_spectrum(problem):
     cov_evals, _ = symeig(cov_mat, atol=atol, rtol=rtol)
     gram_evals, _ = symeig(gram_mat, atol=atol, rtol=rtol)
 
-    check_sizes_and_values(cov_evals, gram_evals)
+    rtol, atol = 1e-5, 1e-7
+    check_sizes_and_values(cov_evals, gram_evals, rtol=rtol, atol=atol)
     problem.tear_down()
 
 
@@ -82,7 +83,8 @@ def test_CenteredBatchGrad(problem):
     autograd_res = AutogradExtensions(problem).centered_batch_grad()
     backpack_res = BackpackExtensions(problem).centered_batch_grad()
 
-    check_sizes_and_values(autograd_res, backpack_res)
+    rtol, atol = 1e-5, 1e-7
+    check_sizes_and_values(autograd_res, backpack_res, rtol=rtol, atol=atol)
     problem.tear_down()
 
 
