@@ -20,6 +20,18 @@ SETTINGS = [
         "loss_function_fn": lambda: torch.nn.CrossEntropyLoss(reduction="sum"),
         "target_fn": lambda: classification_targets((3,), 5),
     },
+    {
+        "input_fn": lambda: torch.rand(4, 3, 6, 6),
+        "module_fn": lambda: torch.nn.Sequential(
+            torch.nn.Conv2d(3, 2, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=3, stride=2),
+            torch.nn.Flatten(),
+            torch.nn.Linear(8, 5),
+        ),
+        "loss_function_fn": lambda: torch.nn.CrossEntropyLoss(reduction="mean"),
+        "target_fn": lambda: classification_targets((4,), 5),
+    },
     # Regression
     {
         "input_fn": lambda: torch.rand(3, 10),

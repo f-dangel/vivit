@@ -31,29 +31,27 @@ class AutogradExtensions(ExtensionsImplementation):
         batch_grad_flat = self._batch_grad_flat()
         return torch.einsum("if,jf->ij", batch_grad_flat, batch_grad_flat)
 
-    def batch_grad(self):
-        N = self.problem.input.shape[0]
-        batch_grads = [
-            torch.zeros(N, *p.size()).to(self.problem.device)
+    def batch_grad(self, subsampling=None):
+        batch_size = self.problem.input.shape[0]
+
+        if subsampling is None:
+            subsampling = list(range(batch_size))
+
+        batch_grad = [
+            torch.zeros(len(subsampling), *p.size()).to(self.problem.device)
             for p in self.problem.model.parameters()
         ]
+        factor = self.problem.compute_reduction_factor()
 
-        loss_list = torch.zeros((N))
-        gradients_list = []
-        for b in range(N):
-            _, _, loss = self.problem.forward_pass(sample_idx=b)
-            gradients = torch.autograd.grad(loss, self.problem.model.parameters())
-            gradients_list.append(gradients)
-            loss_list[b] = loss
+        for out_idx, n in enumerate(subsampling):
+            _, _, loss_n = self.problem.forward_pass(sample_idx=n)
+            loss_n *= factor
+            grad_n = torch.autograd.grad(loss_n, self.problem.model.parameters())
 
-        _, _, batch_loss = self.problem.forward_pass()
-        factor = self.problem.get_reduction_factor(batch_loss, loss_list)
+            for param_idx, g_n in enumerate(grad_n):
+                batch_grad[param_idx][out_idx] = g_n.detach()
 
-        for b, gradients in zip(range(N), gradients_list):
-            for idx, g in enumerate(gradients):
-                batch_grads[idx][b, :] = g.detach() * factor
-
-        return batch_grads
+        return batch_grad
 
     def batch_l2_grad(self):
         batch_grad = self.batch_grad()
@@ -169,33 +167,199 @@ class AutogradExtensions(ExtensionsImplementation):
             return self.ggn_batch(subsampling=subsampling).sum(N_axis)
 
     def ggn_batch(self, subsampling=None):
+        factor = self.problem.compute_reduction_factor()
+
         batch_size = self.problem.input.shape[0]
-
-        # for determining the scaling factor stemming from reduction in the loss
-        _, _, batch_loss = self.problem.forward_pass()
-        loss_list = torch.zeros(batch_size, device=self.problem.device)
-
         if subsampling is None:
             subsampling = list(range(batch_size))
 
         batch_ggn = [None for _ in range(len(subsampling))]
 
-        for b in range(batch_size):
-            _, _, loss = self.problem.forward_pass(sample_idx=b)
+        for out_idx, n in enumerate(subsampling):
+            ggn_n = self.sample_ggn(sample_idx=n)
+            batch_ggn[out_idx] = factor * ggn_n
 
-            if b in subsampling:
-                sample_idx = subsampling.index(b)
-                ggn = self.sample_ggn(sample_idx=sample_idx)
-                batch_ggn[sample_idx] = ggn
-
-            loss_list[b] = loss
-
-        factor = self.problem.get_reduction_factor(batch_loss, loss_list)
-
-        return torch.stack(batch_ggn) * factor
+        return torch.stack(batch_ggn)
 
     def diag_ggn_via_ggn(self):
         """Compute full GGN and extract diagonal. Reshape according to param shapes."""
         diag_ggn = self.ggn().diag()
 
         return vector_to_parameter_list(diag_ggn, self.problem.model.parameters())
+
+    def ggn_mat_prod(self, mat_list, subsampling=None):
+        """Vectorized multiplication with the Generalized Gauss-Newton/Fisher.
+
+        Args:
+            mat_list ([torch.Tensor]): Layer-wise split of matrices to be multiplied
+                by the GGN. Each item has a free leading dimension, and shares the
+                same trailing dimensions with the associated parameter.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
+
+        Returns:
+            [torch.Tensor]: Result of multiplication with the GGN
+        """
+        ggn_mat_list = [None for _ in mat_list]
+
+        for V in range(mat_list[0].shape[0]):
+            vec_list = [mat[V] for mat in mat_list]
+            ggn_vec_list = self.ggn_vec_prod(vec_list, subsampling=subsampling)
+            ggn_vec_list = [ggn_v.unsqueeze(0) for ggn_v in ggn_vec_list]
+
+            # update
+            for idx, ggn_v in enumerate(ggn_vec_list):
+                ggn_m = ggn_mat_list[idx]
+                ggn_m = ggn_v if ggn_m is None else torch.cat([ggn_m, ggn_v])
+
+                ggn_mat_list[idx] = ggn_m
+
+        return ggn_mat_list
+
+    def ggn_vec_prod(self, vec_list, subsampling=None):
+        """Multiplication with the Generalized Gauss-Newton/Fisher.
+
+        Args:
+            mat_list ([torch.Tensor]): Layer-wise split of vectors to be multiplied by
+                the GGN. Each item has the same dimensions as the associated parameter.
+            subsampling ([int]): Indices of samples in the mini-batch for which
+                the GGN/Fisher should be multiplied with. ``None`` uses the
+                entire mini-batch.
+
+        Returns:
+            [torch.Tensor]: Result of multiplication with the GGN
+        """
+        parameters = list(self.problem.model.parameters())
+
+        if subsampling is None:
+            _, output, loss = self.problem.forward_pass()
+            return ggn_vector_product_from_plist(loss, output, parameters, vec_list)
+        else:
+            ggn_vec_list = [None for _ in vec_list]
+            factor = self.problem.compute_reduction_factor()
+
+            for n in subsampling:
+                _, output_n, loss_n = self.problem.forward_pass(sample_idx=n)
+
+                ggn_n_vec_list = [
+                    factor * ggn_n_vec
+                    for ggn_n_vec in ggn_vector_product_from_plist(
+                        loss_n, output_n, parameters, vec_list
+                    )
+                ]
+
+                # update
+                for idx, ggn_n_vec in enumerate(ggn_n_vec_list):
+                    old_res = ggn_vec_list[idx]
+                    new_res = ggn_n_vec if old_res is None else old_res + ggn_n_vec
+
+                    ggn_vec_list[idx] = new_res
+
+            return ggn_vec_list
+
+    def gammas_ggn(
+        self, top_space, ggn_subsampling=None, grad_subsampling=None, directions=False
+    ):
+        """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
+
+        Args:
+            top_space (float or int): If integer, describes the absolute number of top
+                non-trivial eigenvalues to be considered at most. If float, describes
+                the relative number (ratio between 0. and 1., relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+                Uses at least one, and at most all nontrivial eigenvalues.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+            grad_subsampling ([int], optional): Sample indices used for individual
+                gradients.
+            directions (bool, optional): Whether to return the directions, too.
+
+        Returns:
+            torch.Tensor: 2d tensor containing ``γ[n, d]`` if ``directions=False``.
+                Else, a second tensor containing the eigenvectors is returned.
+        """
+        N, _ = self._mean_reduction()
+        _, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
+
+        grad_batch = self.batch_grad(subsampling=grad_subsampling)
+        # compensate individual gradient scaling from BackPACK
+        individual_gradients = [g * N for g in grad_batch]
+
+        # flattened individual gradients
+        individual_gradients = torch.cat(
+            [g.flatten(start_dim=1) for g in individual_gradients], dim=1
+        )
+
+        gammas = torch.einsum("ni,id->nd", individual_gradients, evecs)
+
+        if directions:
+            return gammas, evecs
+        else:
+            return gammas
+
+    def lambdas_ggn(self, top_space, ggn_subsampling=None, lambda_subsampling=None):
+        """Second-order derivatives ``λ[n, d]`` along the leading GGN eigenvectors.
+
+        Uses the exact GGN for λ.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+            lambda_subsampling ([int], optional): Sample indices used for lambdas.
+
+        Returns:
+            torch.Tensor: 2d tensor containing ``λ[n, d]``.
+        """
+        N, _ = self._mean_reduction()
+        evals, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
+
+        if lambda_subsampling is None:
+            lambda_subsampling = list(range(N))
+
+        D = evals.numel()
+        N_lambda = len(lambda_subsampling)
+
+        lambdas = torch.zeros(N_lambda, D, device=evals.device)
+
+        for out_idx, n in enumerate(lambda_subsampling):
+            ggn_n = self.ggn(subsampling=[n])
+
+            # compensate subsampling scale
+            ggn_n *= N
+
+            ggn_n_evecs = torch.einsum("ij,jd->id", ggn_n, evecs)
+            lambdas_n = torch.einsum("id,id->d", evecs, ggn_n_evecs)
+
+            lambdas[out_idx] = lambdas_n
+
+        return lambdas
+
+    def directions_ggn(self, top_space, subsampling=None):
+        """Compute the leading GGN eigenvalues and eigenvectors.
+
+        Args:
+            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+            ggn_subsampling ([int], optional): Sample indices used for the GGN.
+
+        Returns:
+            (torch.Tensor, torch.Tensor): First tensor are the leading GGN eigenvalues,
+                sorted in ascending order. Second tensor are the associated
+                eigenvectors as a column-stacked matrix.
+        """
+        N, _ = self._mean_reduction()
+        ggn = self.ggn(subsampling=subsampling)
+
+        # compensate subsampling scale
+        if subsampling is not None:
+            ggn *= N / len(subsampling)
+
+        evals, evecs = ggn.symeig(eigenvectors=True)
+
+        # select top eigenspace
+        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=subsampling)
+        evals = evals[-k:]
+        evecs = evecs[:, -k:]
+
+        return evals, evecs
