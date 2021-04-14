@@ -26,3 +26,5 @@ src/
 /exp/exp04_gradient_signal_to_noise_ratio/results/
 /exp/exp05_curvature_signal_to_noise_ratio/results/
 /exp/exp05_curvature_signal_to_noise_ratio/fig/
+/exp/exp06_toy_example/results/
+/exp/exp06_toy_example/fig/
