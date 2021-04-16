@@ -1,6 +1,7 @@
 """Damping policies from first- and second-order directional derivatives."""
 
 import torch
+from lowrank.utils.logging import log_with_global_step, tensor_to_list
 
 
 class BaseDamping:
@@ -62,10 +63,7 @@ class BootstrapDamping(BaseDamping):
     DEFAULT_DAMPING_GRID = torch.logspace(-3, 2, 100)
 
     def __init__(
-        self,
-        damping_grid=None,
-        num_resamples=100,
-        percentile=95.0,
+        self, damping_grid=None, num_resamples=100, percentile=95.0, log=False
     ):
         """Store ``damping_grid``, ``num_resamples`` and ``percentile``.
 
@@ -78,6 +76,8 @@ class BootstrapDamping(BaseDamping):
             percentile (float): The policy for delta finds a curve (among the
                 Bootstrap gain samples), such that ``percentile`` percent of the
                 gain samples lie above it. The default value is ``95.0``.
+            log (bool): If true, write information to log file. The default value is
+                ``False``.
         """
         super().__init__()
 
@@ -86,6 +86,7 @@ class BootstrapDamping(BaseDamping):
         )
         self._num_resamples = num_resamples
         self._percentile = percentile
+        self._log = log
 
     def _resample(self, sample):
         """Create resample of ``sample``.
@@ -153,6 +154,10 @@ class BootstrapDamping(BaseDamping):
 
         self._damping_grid = self._damping_grid.to(device)
 
+        # Log damping_grid
+        if self._log:
+            log_with_global_step(f"damping_grid={tensor_to_list(self._damping_grid)}")
+
         # Vector for dampings for each direction
         dampings = torch.zeros(D, device=device)
 
@@ -180,7 +185,17 @@ class BootstrapDamping(BaseDamping):
                 gain = -gam_hat_re * tau_hat_re - 0.5 * lam_hat_re * tau_hat_re ** 2
                 gains[resample_idx, :] = gain
 
+            # Log first and second derivatives and bootstrap gains
+            if self._log:
+                log_with_global_step(f"D={D_idx}:first={tensor_to_list(first)}")
+                log_with_global_step(f"D={D_idx}:second={tensor_to_list(second)}")
+                log_with_global_step(f"D={D_idx}:gains={tensor_to_list(gains)}")
+
             # Compute damping based on gains
             dampings[D_idx] = self._delta_policy(gains)
+
+        # Log final dampings
+        if self._log:
+            log_with_global_step(f"dampings={tensor_to_list(dampings)}")
 
         return dampings
