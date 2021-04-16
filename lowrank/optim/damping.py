@@ -187,9 +187,9 @@ class BootstrapDamping(BaseDamping):
 
             # Log first and second derivatives and bootstrap gains
             if self._log:
-                log_with_global_step(f"D={D_idx}:first={tensor_to_list(first)}")
-                log_with_global_step(f"D={D_idx}:second={tensor_to_list(second)}")
-                log_with_global_step(f"D={D_idx}:gains={tensor_to_list(gains)}")
+                log_with_global_step(f"firstd_d_{D_idx}={tensor_to_list(first)}")
+                log_with_global_step(f"second_d_{D_idx}={tensor_to_list(second)}")
+                log_with_global_step(f"gains_d_{D_idx}={tensor_to_list(gains)}")
 
             # Compute damping based on gains
             dampings[D_idx] = self._delta_policy(gains)
