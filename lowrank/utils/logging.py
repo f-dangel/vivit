@@ -1,5 +1,4 @@
 import logging
-import torch
 
 LOGGER = None
 GLOBAL_STEP = 0
