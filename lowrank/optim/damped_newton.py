@@ -62,18 +62,20 @@ class DampedNewton(torch.optim.Optimizer):
         """
         return self._computations.get_extension_hook(self.param_groups)
 
-    def step(self, closure=None):
+    def step(self, closure=None, lr=1.0):
         """Apply damped Newton step to all parameters.
 
         Modifies the ``.data`` entry of each parameter.
 
         Args:
             closure (callable): Function to reevaluate the model and return the loss.
+            lr (float): Learning rate. The step is scaled by this number before it is
+                applied to the model parameters. The default value is ``1.0``.
         """
         for group in self.param_groups:
-            self.step_group(group)
+            self.step_group(group, lr)
 
-    def step_group(self, group):
+    def step_group(self, group, lr=1.0):
         """Apply damped Newton step to a parameter group.
 
         Modifies the ``.data`` entry of each group parameter.
@@ -81,13 +83,15 @@ class DampedNewton(torch.optim.Optimizer):
         Args:
             group (dict): Parameter group. Entry of a ``torch.optim.Optimizer``'s
                 ``param_groups`` list.
+            lr (float): Learning rate. The step is scaled by this number before it is
+                applied to the model parameters. The default value is ``1.0``.
         """
         # TODO Compute during backpropagation
         # initialize field containing the damped Newton step in each parameter
         self._computations.compute_step(group, self._damping, self.SAVEFIELD)
 
         for param in group["params"]:
-            param.data.add_(getattr(param, self.SAVEFIELD))
+            param.data.add_(lr * getattr(param, self.SAVEFIELD))
 
     def zero_newton(self):
         """Delete the parameter attributes used to store the Newton steps."""
