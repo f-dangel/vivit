@@ -12,7 +12,6 @@ src/
 **.egg-info
 **.mypy_cache
 **__pycache__
-**vscode
 .coverage
 **/MNIST
 /exp/exp01_mnist_cnn_spectra/fig
