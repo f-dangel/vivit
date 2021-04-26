@@ -72,6 +72,7 @@ examples:
 	@cd exp/examples && python example_centered_gradient_covariance.py
 	@cd exp/examples && python example_ggn_exact.py
 	@cd exp/examples && python example_optimizer_mnist.py
+	@cd exp/examples && python example_toy_problem.py
 
 .PHONY: install-lint
 
