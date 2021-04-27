@@ -73,7 +73,7 @@ class DampedNewton(torch.optim.Optimizer):
                 it is applied to the network parameters. The default value is ``1.0``.
         """
         for group in self.param_groups:
-            self.step_group(group)
+            self.step_group(group, lr)
 
     def step_group(self, group, lr=1.0):
         """Apply damped Newton step to a parameter group.
