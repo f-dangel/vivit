@@ -18,11 +18,11 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
             unflattened tensor of dimension ``2 * start_dim``.
 
     Returns:
-        torch.Tensor: If ``reshape=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
+        torch.Tensor: If ``flatten=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``tensor``.
 
-            If ``reshape=False`` a tensor of shape ``[*(dᵢ), *(dᵢ)]``
+            If ``flatten=False`` a tensor of shape ``[*(dᵢ), *(dᵢ)]``
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``tensor``.
     """
@@ -38,6 +38,32 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
         result = reshape_as_square(result)
 
     return result
+
+
+def pairwise2_dot(tensor, other, start_dim=1):
+    """Compute pairwise scalar products between two tensors.
+
+    Args:
+        tensor (torch.Tensor): A tensor whose vector slices are paired with
+            slices of ``other``.
+        other (torch.Tensor): A tensor whose vector slices are paired with
+            slices of ``tensor``.
+        start_dim (int): Start dimension of contraction for scalar product.
+
+    Returns:
+        torch.Tensor: A tensor of shape ``[*(tensorᵢ), *(otherⱼ)]`` where `i, j``
+            range from ``0`` to ``start_dim - 1``. ``tensorᵢ`` is the ``i``th
+            dimension of ``tensor``, and ``otherⱼ`` is the ``j`` dimension of
+            ``other``.
+    """
+    letters = get_letters(start_dim + tensor.dim())
+    out1_idx = letters[:start_dim]
+    out2_idx = letters[start_dim : 2 * start_dim]
+    sum_idx = letters[2 * start_dim :]
+
+    equation = f"{out1_idx}{sum_idx},{out2_idx}{sum_idx}->{out1_idx}{out2_idx}"
+
+    return torch.einsum(equation, tensor, other)
 
 
 def get_letters(num_letters):
@@ -182,3 +208,59 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
         result = torch.cat([res.flatten(end_dim=res.dim() - 2) for res in result])
 
     return result
+
+
+def sqrt_gram_t_mat_prod(mat_list, parameters, savefield, start_dim):
+    """Multiply columns of ``mat`` with the transpose Gram matrix square root ``Uᵀ``.
+
+    The Gram matrix is ``Uᵀ U``.
+
+    Args:
+        mat_list ([torch.Tensor]): List of tensors with identical trailing dimensions as
+            the parameters in ``params``, plus same leading dimension. ``Uᵀ`` is applied
+            to all vectors defined by the leading dimension.
+        parameters (iterable): Iterable object to traverse the parameters that con-
+            tribute to the Gram matrix square root.
+        savefield (str): Attribute field from which the current parameter's Gram matrix
+            square root will be fetched.
+        start_dim (int): ``1`` for gradient covariance, ``2`` for GGN matrices.
+
+    Returns:
+        torch.Tensor: Result of multiplication. Has shape ``[V, *]`` where ``*`` is the
+            Gram matrix column space dimension (``N`` for gradient covariance,
+            ``N * C`` for GGN factorization).
+
+    Raises:
+        ValueError: If matrices in ``mat_list`` don't have the same leading dimension.
+    """
+    V = {mat.shape[0] for mat in mat_list}
+    V_list = list(V)
+    if len(V_list) != 1:
+        raise ValueError(f"Vectorization dimension is not unique. Got {V_list}")
+    else:
+        V = V_list[0]
+
+    def gram_t_mat_prod(p, mat):
+        """Multiply trailing dimensions of ``mat`` with ``p``'s transpose Gram matrix
+        square root ``Uᵀ``.
+
+        Args:
+            p (torch.nn.Parameter): Parameter whose ``Uᵀ`` will be used.
+            mat (torch.Tensor): Matrix to be multiplied with ``Uᵀ``.
+
+        Returns:
+            torch.Tensor: Result of the matrix-multiply ``Uᵀ @ mat``.
+        """
+        gram_sqrt = getattr(p, savefield)
+
+        letters = get_letters(gram_sqrt.dim() + 1)
+
+        col_idx = letters[:start_dim]
+        V_idx = letters[start_dim]
+        sum_idx = letters[start_dim + 1 :]
+
+        equation = f"{V_idx}{sum_idx},{col_idx}{sum_idx}->{V_idx}{col_idx}"
+
+        return torch.einsum(equation, mat, gram_sqrt).reshape(V, -1)
+
+    return sum(gram_t_mat_prod(p, mat) for p, mat in zip(parameters, mat_list))

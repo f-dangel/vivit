@@ -12,6 +12,7 @@ src/
 **.egg-info
 **.mypy_cache
 **__pycache__
+.vscode/*
 .coverage
 **/MNIST
 /exp/exp01_mnist_cnn_spectra/fig
@@ -26,3 +27,6 @@ src/
 /exp/exp04_gradient_signal_to_noise_ratio/results/
 /exp/exp05_curvature_signal_to_noise_ratio/results/
 /exp/exp05_curvature_signal_to_noise_ratio/fig/
+/exp/exp06_toy_example/results/
+/exp/exp06_toy_example/fig/
+/exp/exp06_toy_example/diagnostics/
