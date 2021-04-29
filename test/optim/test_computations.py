@@ -126,7 +126,8 @@ def test_computations_lambdas_ggn(
         subsampling_second=subsampling_second,
     )
 
-    check_sizes_and_values(autograd_res, backpack_res)
+    rtol, atol = 1e-5, 1e-6
+    check_sizes_and_values(autograd_res, backpack_res, rtol=rtol, atol=atol)
     problem.tear_down()
 
 

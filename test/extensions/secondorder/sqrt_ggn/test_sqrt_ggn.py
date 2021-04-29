@@ -64,10 +64,10 @@ def test_ggn_mat_prod(problem, subsampling, V=3):
     problem.tear_down()
 
 
-MC_ATOL = 1e-3
+MC_ATOL = 2e-3
 MC_RTOL = 1e-2
-MC_SAMPLES = 300000
-MC_CHUNKS = 10
+MC_SAMPLES = 500000
+MC_CHUNKS = 20
 
 
 @pytest.mark.expensive
