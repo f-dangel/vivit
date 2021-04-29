@@ -1,3 +1,7 @@
+"""Functions for setting up a logger, setting the global logging step ``GLOBAL_STEP``
+and writing a ``torch.Tensor`` to the log-file.
+"""
+
 import logging
 
 LOGGER = None
