@@ -44,7 +44,7 @@ def stable_symeig(input, eigenvectors=False, upper=True):
         Returns:
             torch.Tensor: input with shifted diagonal
         """
-        return input + torch.diag(shift * torch.ones(input.shape[0]))
+        return input + torch.diag(shift * torch.ones(input.shape[0])).to(input.device)
 
     try:
         evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
