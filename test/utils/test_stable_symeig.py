@@ -1,5 +1,7 @@
 """Test of stable symeig implementation"""
 
+import os
+
 import pytest
 import torch
 
@@ -7,7 +9,11 @@ from lowrank.utils.eig import stable_symeig
 
 T_1 = torch.diag(torch.Tensor([1.1, 2.2, 9.9]))
 T_2 = torch.Tensor([[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 2.2]])
-T_3 = torch.load("tensor_causes_symeig_error.pt")
+
+HERE = os.path.abspath(__file__)
+HEREDIR = os.path.dirname(HERE)
+file_name = "tensor_causes_symeig_error.pt"
+T_3 = torch.load(os.path.join(HEREDIR, file_name))
 
 TENSOR_LIST = [T_1, T_2, T_3]
 TENSOR_LIST_IDS = ["diagonal_tensor", "dense_tensor", "degenerated_tensor"]
