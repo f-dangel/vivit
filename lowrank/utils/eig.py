@@ -1,7 +1,63 @@
 """Eigenvalue decomposition utility functions."""
 
-import numpy
 import torch
+
+
+def stable_symeig(input, eigenvectors=False, upper=True):
+    """Compute EVals and EVecs of a matrix.
+
+    This is a wrapper around ``torch.symeig``. If ``torch.symeig`` fails to compute
+    the eigenvalues and -vectors, we shift the diagonal of the input by ``1`` to
+    decrease the condition number. Then ``torch.symeig`` is called on this matrix and
+    we obtain the eigenvalues by substracting ``1`` again.
+
+    Args:
+        input (torch.Tensor): 2d symmetric tensor.
+        eigenvectors (bool): Whether eigenvectors should be computed.
+        upper(bool): Whether to consider upper-triangular or lower-triangular
+            region of the matrix.
+
+    Returns:
+        (torch.Tensor, torch.Tensor): First tensor of one dimension contains
+            eigenvalues. Second tensor holds associated eigenvectors stored columnwise,
+            i.e. ``evecs[:, i]`` is eigenvector with eigenvalue ``evals[i]``.
+
+    Raises:
+        ValueError: If ``input`` does not have dimension 2 or if it is not square.
+        RuntimeError: If solver did not converge or if input or output tensor contains
+            ``nan``s
+    """
+    if input.dim() != 2:
+        raise ValueError("Input must be of dimension 2")
+    if input.shape[0] != input.shape[1]:
+        raise ValueError("Input must be square")
+    if _has_nans(input):
+        raise RuntimeError("Input has nans")
+
+    def shift_diag(input, shift):
+        """Shifts the diagonal of the square ``input`` tensor by ``shift``
+
+        Args:
+            input (torch.Tensor): 2d square tensor.
+            shift (float): The shift applied to the diagonal of ``input``
+
+        Returns:
+            torch.Tensor: input with shifted diagonal
+        """
+        return input + torch.diag(shift * torch.ones(input.shape[0]))
+
+    try:
+        evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
+        return evals, evecs
+    except RuntimeError:
+        SHIFT = 1.0
+        shifted_input = shift_diag(input, SHIFT)
+        try:
+            evals, evecs = shifted_input.symeig(eigenvectors=eigenvectors, upper=upper)
+        except RuntimeError as e:
+            e_msg = getattr(e, "message", repr(e))
+            raise RuntimeError(f"{e_msg}")
+        return evals - SHIFT, evecs
 
 
 def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
@@ -74,8 +130,5 @@ def _has_nans(tensor):
     Returns:
         bool: ``True`` if ``tensor`` contains NaNs, else ``False``.
     """
-    tensor_numpy = tensor.data.cpu().numpy().flatten()
-    where_nan = numpy.argwhere(tensor_numpy != tensor_numpy)
-    nan_count = len(where_nan)
 
-    return nan_count != 0
+    return torch.any(torch.isnan(tensor))

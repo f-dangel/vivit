@@ -8,6 +8,7 @@ import torch
 from backpack.extensions import BatchGrad
 
 from lowrank.extensions import SqrtGGNExact
+from lowrank.utils.eig import stable_symeig
 from lowrank.utils.ggn import V1_t_V2, V_mat_prod, V_t_mat_prod, V_t_V
 from lowrank.utils.gram import reshape_as_square
 from lowrank.utils.subsampling import is_subset, merge_extensions, sample_output_mapping
@@ -206,7 +207,10 @@ class BaseComputations:
             N = self._batch_size[group_id]
             gram_mat *= N / N_dir
 
-        gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+        # gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+        gram_evals, gram_evecs = stable_symeig(
+            reshape_as_square(gram_mat), eigenvectors=True
+        )
 
         V_t_mp = partial(
             V_t_mat_prod,
