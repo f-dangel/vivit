@@ -5,6 +5,7 @@ Note:
     https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/base.py#L1-L33 # noqa: B950
 """
 
+import numpy
 import torch
 
 
@@ -85,3 +86,61 @@ class ExtensionsImplementation:
     def ggn_mc(self, mc_samples):
         """MC approximation of the Generalized Gauss-Newton matrix."""
         raise NotImplementedError
+
+    def _mean_reduction(self):
+        """Assert reduction of loss function to be ``'mean'``."""
+        N = self.problem.input.shape[0]
+        reduction_factor = self.problem.compute_reduction_factor()
+
+        print(1 / N)
+        print(reduction_factor)
+        assert numpy.isclose(1.0 / N, reduction_factor), "Reduction is not 'mean'"
+
+        return N, reduction_factor
+
+    def _ggn_rank(self, subsampling=None):
+        """Return the GGN's rank."""
+        D = sum(p.numel() for p in self.problem.model.parameters())
+
+        _, output, _ = self.problem.forward_pass()
+        C = output[0].numel()
+
+        if subsampling is None:
+            N = self.problem.input.shape[0]
+            num_evals = C * N
+        else:
+            num_evals = C * len(subsampling)
+
+        return min(num_evals, D)
+
+    def _ggn_convert_to_top_k(self, top_space, ggn_subsampling=None):
+        """Convert argument specifying the top eigenspace into an absolute number.
+
+        Args:
+            top_space (float or int): If integer, describes the absolute number of top
+                non-trivial eigenvalues to be considered at most. If float, describes
+                the relative number (ratio between 0. and 1., relative to the nontrivial
+                eigenspace) of leading eigenvectors that will be used as directions.
+                Uses at least one, and at most all nontrivial eigenvalues.
+            ggn_subsampling ([int]): Mini-batch indices of samples used in the GGN.
+                ``None`` uses the full batch.
+
+        Returns:
+            int: Absolute number of top eigenvalues to be considered.
+
+        Raises:
+            ValueError: If the input is of incorrect type
+        """
+        nontrivial_evals = self._ggn_rank(subsampling=ggn_subsampling)
+
+        if isinstance(top_space, int):
+            k = top_space
+        elif isinstance(top_space, float):
+            k = int(top_space * nontrivial_evals)
+        else:
+            raise ValueError(f"Input must be int or float. Got {top_space}")
+
+        # clip to below by 1 and above by number of nontrivial eigenvalues
+        k = min(nontrivial_evals, max(k, 1))
+
+        return k

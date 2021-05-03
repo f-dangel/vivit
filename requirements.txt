@@ -1,4 +1,4 @@
 # Dependencies for lowrank
 
 # Install in editable mode from a GitHub repository's branch
-git+git://github.com/f-dangel/backpack.git@c1503e13c4433873bf505b9f436c34bc53ee08aa#egg=backpack-for-pytorch
+git+git://github.com/f-dangel/backpack.git@bf89c8b4130a2728a040e4680774b8a5fcd99f99#egg=backpack-for-pytorch

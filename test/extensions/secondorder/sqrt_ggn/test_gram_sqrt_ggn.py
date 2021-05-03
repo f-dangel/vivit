@@ -52,7 +52,7 @@ def test_gram_sqrt_ggn_mc_spectrum(problem, mc_samples):
     ggn_evals, _ = symeig(ggn_mat, atol=atol, rtol=rtol)
     gram_evals, _ = symeig(gram_mat, atol=atol, rtol=rtol)
 
-    rtol, atol = 1e-5, 1e-7
+    rtol, atol = 1e-5, 1e-6
     check_sizes_and_values(ggn_evals, gram_evals, rtol=rtol, atol=atol)
 
 

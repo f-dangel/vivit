@@ -1,5 +1,6 @@
 """Eigenvalue decomposition utility functions."""
 
+import numpy
 import torch
 
 
@@ -24,11 +25,16 @@ def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
 
     Raises:
         ValueError: If ``input`` does not have dimension 2.
+        RuntimeError: If solver did not converge.
     """
     if input.dim() != 2:
         raise ValueError("Input must be of dimension 2")
 
-    evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
+    try:
+        evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
+    except RuntimeError as e:
+        e_msg = getattr(e, "message", repr(e))
+        raise RuntimeError(f"{e_msg} Tensor contains NaNs: {_has_nans(input)}")
 
     return remove_zero_evals(evals, evecs, atol=atol, rtol=rtol)
 
@@ -57,3 +63,19 @@ def remove_zero_evals(evals, evecs, atol=1e-7, rtol=1e-5):
         evecs = evecs[:, nonzero]
 
     return evals, evecs
+
+
+def _has_nans(tensor):
+    """Return whether a tensor contains NaNs.
+
+    Args:
+        tensor (torch.Tensor): Tensor to be checked.
+
+    Returns:
+        bool: ``True`` if ``tensor`` contains NaNs, else ``False``.
+    """
+    tensor_numpy = tensor.data.cpu().numpy().flatten()
+    where_nan = numpy.argwhere(tensor_numpy != tensor_numpy)
+    nan_count = len(where_nan)
+
+    return nan_count != 0
