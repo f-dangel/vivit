@@ -177,6 +177,7 @@ class BaseComputations:
         self._load_newton_step_to_params(group, savefield)
 
         # clean up
+        self._remove_from_temp_buffers_hook(group)
         self._remove_from_temp_buffers(group)
 
     def _eval_directions(self, group):
@@ -498,3 +499,13 @@ class BaseComputations:
             self._batch_size,
         ]:
             buffer.pop(group_id)
+
+    def _remove_from_temp_buffers_hook(self, group):
+        """Do something before deleting temporary buffers.
+
+        Can be overwritten by child classes
+
+        Args:
+            group (dict): Parameter group of a ``torch.optim.Optimizer``.
+        """
+        pass
