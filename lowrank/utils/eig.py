@@ -22,11 +22,6 @@ def stable_symeig(input, eigenvectors=False, upper=True):
         (torch.Tensor, torch.Tensor): First tensor of one dimension contains
             eigenvalues. Second tensor holds associated eigenvectors stored columnwise,
             i.e. ``evecs[:, i]`` is eigenvector with eigenvalue ``evals[i]``.
-
-    Raises:
-        ValueError: If ``input`` does not have dimension 2 or if it is not square.
-        RuntimeError: If solver did not converge or if input or output tensor contains
-            ``nan``s
     """
     return symeig_psd(
         input, eigenvectors=eigenvectors, upper=upper, shift=1.0, shift_inplace=False
