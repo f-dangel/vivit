@@ -102,7 +102,8 @@ def shift_diag(input, shift, inplace=False):
     else:
         result = input.clone()
 
-    result[range(input.shape[0]), range(input.shape[1])] += shift
+    min_dim = min(input.shape)
+    result[range(min_dim), range(min_dim)] += shift
 
     return result
 

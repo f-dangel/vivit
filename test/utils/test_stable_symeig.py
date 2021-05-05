@@ -5,7 +5,7 @@ import os
 import pytest
 import torch
 
-from lowrank.utils.eig import stable_symeig, symeig_psd
+from lowrank.utils.eig import shift_diag, stable_symeig, symeig_psd
 
 T_1 = torch.diag(torch.Tensor([1.1, 2.2, 9.9]))
 T_2 = torch.Tensor([[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 2.2]])
@@ -131,3 +131,25 @@ def test_compare_symeig_psd_symeig(tensor, shift, shift_inplace):
     rtol, atol = 1e-5, 1e-7
     assert torch.allclose(evals, psd_evals, rtol=rtol, atol=atol)
     assert torch.allclose(evecs, psd_evecs, rtol=rtol, atol=atol)
+
+
+def test_shift_diag_non_square():
+    """Test diagonal shift for rectangular matrices."""
+    input = torch.tensor(
+        [
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 4.0],
+        ]
+    )
+    shift = 0.1
+
+    result = torch.tensor(
+        [
+            [1.1, 1.0],
+            [2.0, 2.1],
+            [3.0, 4.0],
+        ]
+    )
+
+    assert torch.allclose(shift_diag(input, shift), result)
