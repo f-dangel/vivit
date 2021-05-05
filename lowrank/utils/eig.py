@@ -23,9 +23,17 @@ def stable_symeig(input, eigenvectors=False, upper=True):
             eigenvalues. Second tensor holds associated eigenvectors stored columnwise,
             i.e. ``evecs[:, i]`` is eigenvector with eigenvalue ``evals[i]``.
     """
-    return symeig_psd(
-        input, eigenvectors=eigenvectors, upper=upper, shift=1.0, shift_inplace=False
-    )
+    try:
+        eig = input.symeig(eigenvectors=eigenvectors, upper=upper)
+    except RuntimeError:
+        eig = symeig_psd(
+            input,
+            eigenvectors=eigenvectors,
+            upper=upper,
+            shift=1.0,
+            shift_inplace=False,
+        )
+    return eig
 
 
 def symeig_psd(input, eigenvectors=False, upper=True, shift=0.0, shift_inplace=False):
