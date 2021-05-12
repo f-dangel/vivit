@@ -280,6 +280,10 @@ class BootstrapDamping2(BaseDamping):
             gain_perc_filtered = gain_perc[ge_zero]
             max_idx = torch.argmax(gain_perc_filtered)
             return damping_grid_filtered[max_idx]
+
+            # gain_median_filtered = torch.quantile(gains, 0.5, dim=0)[ge_zero]
+            # max_idx = torch.argmax(gain_median_filtered)
+            # return damping_grid_filtered[max_idx]
         else:
             return float("inf")
 
@@ -307,10 +311,6 @@ class BootstrapDamping2(BaseDamping):
         device = first_derivatives.device
 
         self._damping_grid = self._damping_grid.to(device)
-
-        # Log damping_grid
-        if self._log:
-            log_with_global_step(f"damping_grid={tensor_to_list(self._damping_grid)}")
 
         # Vector for dampings for each direction
         dampings = torch.zeros(D, device=device)
@@ -342,17 +342,7 @@ class BootstrapDamping2(BaseDamping):
                 gain = -gam_hat_re * step - 0.5 * lam_hat_re * step ** 2
                 gains[resample_idx, :] = gain
 
-            # Log first and second derivatives and bootstrap gains
-            if self._log:
-                log_with_global_step(f"firstd_d_{D_idx}={tensor_to_list(first)}")
-                log_with_global_step(f"second_d_{D_idx}={tensor_to_list(second)}")
-                log_with_global_step(f"gains_d_{D_idx}={tensor_to_list(gains)}")
-
             # Compute damping based on gains
             dampings[D_idx] = self._delta_policy(gains)
-
-        # Log final dampings
-        if self._log:
-            log_with_global_step(f"dampings={tensor_to_list(dampings)}")
 
         return dampings
