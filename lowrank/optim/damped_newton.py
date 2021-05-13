@@ -128,10 +128,7 @@ class DampedNewton(torch.optim.Optimizer):
                 it is applied to the network parameters. The default value is ``1.0``.
         """
         for param in group["params"]:
-            if lr == 1.0:
-                param.data.add_(getattr(param, self.SAVEFIELD))
-            else:
-                param.data.add_(lr * getattr(param, self.SAVEFIELD))
+            param.data.add_(getattr(param, self.SAVEFIELD), alpha=lr)
 
     def zero_newton(self):
         """Delete the parameter attributes used to store the Newton steps."""
