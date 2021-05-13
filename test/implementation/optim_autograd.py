@@ -47,7 +47,7 @@ class AutogradOptimExtensions(AutogradExtensions):
 
     def newton_step(
         self,
-        top_k,
+        param_groups,
         damping,
         subsampling_directions=None,
         subsampling_first=None,
@@ -56,9 +56,7 @@ class AutogradOptimExtensions(AutogradExtensions):
         """Directionally-damped Newton step along the top-k GGN eigenvectors.
 
         Args:
-            top_k (int): Number of leading eigenvectors used as directions. Will be
-                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
-                eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             damping (lowrank.optim.damping.BaseDamping): Policy for selecting
                 dampings along a direction from first- and second- order directional
                 derivatives.
@@ -69,22 +67,30 @@ class AutogradOptimExtensions(AutogradExtensions):
             subsampling_second ([int], optional): Sample indices used for individual
                 curvature matrices.
         """
-        gammas, evecs = super().gammas_ggn(
-            top_k,
+        group_gammas, group_evecs = super().gammas_ggn(
+            param_groups,
             ggn_subsampling=subsampling_directions,
             grad_subsampling=subsampling_first,
             directions=True,
         )
-        lambdas = super().lambdas_ggn(
-            top_k,
+        group_lambdas = super().lambdas_ggn(
+            param_groups,
             ggn_subsampling=subsampling_directions,
             lambda_subsampling=subsampling_second,
         )
-        deltas = damping(gammas, lambdas)
 
-        batch_axis = 0
-        scale = -gammas.mean(batch_axis) / (lambdas.mean(batch_axis) + deltas)
+        newton_steps = []
 
-        step = torch.einsum("d,id->i", scale, evecs)
+        for group, gammas, evecs, lambdas in zip(
+            param_groups, group_gammas, group_evecs, group_lambdas
+        ):
+            deltas = damping(gammas, lambdas)
 
-        return vector_to_parameter_list(step, self.problem.model.parameters())
+            batch_axis = 0
+            scale = -gammas.mean(batch_axis) / (lambdas.mean(batch_axis) + deltas)
+
+            step = torch.einsum("d,id->i", scale, evecs)
+
+            newton_steps.append(vector_to_parameter_list(step, group["params"]))
+
+        return newton_steps

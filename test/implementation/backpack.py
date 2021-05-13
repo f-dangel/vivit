@@ -1,11 +1,8 @@
-"""
-
-Note:
-    This file is (almost) a copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/backpack.py#L1-L84 # noqa: B950
-"""
 import math
-from test.implementation.base import ExtensionsImplementation
+from test.implementation.base import (
+    ExtensionsImplementation,
+    parameter_groups_to_param_idx,
+)
 
 import backpack.extensions as new_ext
 import torch
@@ -274,15 +271,11 @@ class BackpackExtensions(ExtensionsImplementation):
 
         return sizes
 
-    def gammas_ggn(self, top_space, ggn_subsampling=None, grad_subsampling=None):
+    def gammas_ggn(self, param_groups, ggn_subsampling=None, grad_subsampling=None):
         """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
 
         Args:
-            top_space (float or int): If integer, describes the absolute number of top
-                non-trivial eigenvalues to be considered at most. If float, describes
-                the relative number (ratio between 0. and 1., relative to the nontrivial
-                eigenspace) of leading eigenvectors that will be used as directions.
-                Uses at least one, and at most all nontrivial eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
             grad_subsampling ([int], optional): Sample indices used for individual
                 gradients.
@@ -295,20 +288,30 @@ class BackpackExtensions(ExtensionsImplementation):
         # create savefield buffers
         self.sqrt_ggn()
         savefield = "sqrt_ggn_exact"
-        gram = V_t_V(
-            self.problem.model.parameters(), savefield, subsampling=ggn_subsampling
-        )
+
+        group_gram = [
+            V_t_V(group["params"], savefield, subsampling=ggn_subsampling)
+            for group in param_groups
+        ]
 
         # compensate subsampling scale
         if ggn_subsampling is not None:
-            gram *= N / len(ggn_subsampling)
+            group_gram = [gram * N / len(ggn_subsampling) for gram in group_gram]
 
-        evals, evecs = reshape_as_square(gram).symeig(eigenvectors=True)
+        group_evals = []
+        group_evecs = []
 
-        # select top eigenspace
-        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=ggn_subsampling)
-        evals = evals[-k:]
-        evecs = evecs[:, -k:]
+        for gram, group in zip(group_gram, param_groups):
+            evals, evecs = reshape_as_square(gram).symeig(eigenvectors=True)
+
+            # select top eigenspace
+            criterion = group["criterion"]
+            keep = criterion(evals)
+
+            evals = evals[keep]
+            self._degeneracy_warning(evals)
+            group_evals.append(evals)
+            group_evecs.append(evecs[:, keep])
 
         # flattened individual gradients
         grad_batch = self.batch_grad(subsampling=grad_subsampling)
@@ -316,33 +319,45 @@ class BackpackExtensions(ExtensionsImplementation):
         # compensate individual gradient scaling from BackPACK
         individual_gradients = [g * N for g in grad_batch]
 
-        V_t_g = V_t_mat_prod(
-            individual_gradients,
-            list(self.problem.model.parameters()),
-            savefield,
-            subsampling=ggn_subsampling,
-            flatten=True,
+        group_indices = parameter_groups_to_param_idx(
+            param_groups, list(self.problem.model.parameters())
         )
+        group_igrad = [
+            [individual_gradients[idx] for idx in group_idx]
+            for group_idx in group_indices
+        ]
+
+        group_V_t_g = [
+            V_t_mat_prod(
+                igrad,
+                group["params"],
+                savefield,
+                subsampling=ggn_subsampling,
+                flatten=True,
+            )
+            for igrad, group in zip(group_igrad, param_groups)
+        ]
 
         # compensate subsampling scale from multiplication with ``Vᵀ``
         if ggn_subsampling is not None:
-            V_t_g *= math.sqrt(N / len(ggn_subsampling))
+            group_V_t_g = [
+                V_t_g * math.sqrt(N / len(ggn_subsampling)) for V_t_g in group_V_t_g
+            ]
 
-        gammas = torch.einsum("ni,id->nd", V_t_g, evecs) / evals.sqrt()
+        group_gammas = []
 
-        return gammas
+        for V_t_g, evals, evecs in zip(group_V_t_g, group_evals, group_evecs):
+            group_gammas.append(torch.einsum("ni,id->nd", V_t_g, evecs) / evals.sqrt())
 
-    def lambdas_ggn(self, top_space, ggn_subsampling=None, lambda_subsampling=None):
+        return group_gammas
+
+    def lambdas_ggn(self, param_groups, ggn_subsampling=None, lambda_subsampling=None):
         """Second-order derivatives ``λ[n, d]`` along the leading GGN eigenvectors.
 
         Uses the exact GGN for λ.
 
         Args:
-            top_space (float or int): If integer, describes the absolute number of top
-                non-trivial eigenvalues to be considered at most. If float, describes
-                the relative number (ratio between 0. and 1., relative to the nontrivial
-                eigenspace) of leading eigenvectors that will be used as directions.
-                Uses at least one, and at most all nontrivial eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
             lambda_subsampling ([int], optional): Sample indices used for lambdas.
 
@@ -354,29 +369,43 @@ class BackpackExtensions(ExtensionsImplementation):
         # create savefield buffers
         self.sqrt_ggn()
         savefield = "sqrt_ggn_exact"
-        gram = V_t_V(
-            self.problem.model.parameters(), savefield, subsampling=ggn_subsampling
-        )
+
+        group_gram = [
+            V_t_V(group["params"], savefield, subsampling=ggn_subsampling)
+            for group in param_groups
+        ]
 
         # compensate subsampling scale
         if ggn_subsampling is not None:
-            gram *= N / len(ggn_subsampling)
+            group_gram = [gram * N / len(ggn_subsampling) for gram in group_gram]
 
-        evals, evecs = reshape_as_square(gram).symeig(eigenvectors=True)
+        group_evals = []
+        group_evecs = []
 
-        # select top eigenspace
-        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=ggn_subsampling)
-        evals = evals[-k:]
-        evecs = evecs[:, -k:]
+        for gram, group in zip(group_gram, param_groups):
+            evals, evecs = reshape_as_square(gram).symeig(eigenvectors=True)
 
-        V_n_t_V = V1_t_V2(
-            self.problem.model.parameters(),
-            savefield,
-            savefield,
-            subsampling1=lambda_subsampling,
-            subsampling2=ggn_subsampling,
-        )
-        V_n_t_V = V_n_t_V.flatten(start_dim=2)
+            # select top eigenspace
+            criterion = group["criterion"]
+            keep = criterion(evals)
+
+            evals = evals[keep]
+            self._degeneracy_warning(evals)
+
+            group_evals.append(evals)
+            group_evecs.append(evecs[:, keep])
+
+        group_V_n_t_V = [
+            V1_t_V2(
+                group["params"],
+                savefield,
+                savefield,
+                subsampling1=lambda_subsampling,
+                subsampling2=ggn_subsampling,
+            )
+            for group in param_groups
+        ]
+        group_V_n_t_V = [V_n_t_V.flatten(start_dim=2) for V_n_t_V in group_V_n_t_V]
 
         # compensate scale
         scale = math.sqrt(N)
@@ -384,12 +413,15 @@ class BackpackExtensions(ExtensionsImplementation):
         if ggn_subsampling is not None:
             scale *= math.sqrt(N / len(ggn_subsampling))
 
-        V_n_t_V *= scale
+        group_V_n_t_V = [V_n_t_V * scale for V_n_t_V in group_V_n_t_V]
 
         # compute lambdas
-        V_n_t_V_evecs = torch.einsum("cni,id->cnd", V_n_t_V, evecs)
-        C_axis = 0
+        group_lambdas = []
 
-        lambdas = (V_n_t_V_evecs ** 2).sum(C_axis) / evals
+        for V_n_t_V, evecs, evals in zip(group_V_n_t_V, group_evecs, group_evals):
+            V_n_t_V_evecs = torch.einsum("cni,id->cnd", V_n_t_V, evecs)
+            C_axis = 0
 
-        return lambdas
+            group_lambdas.append((V_n_t_V_evecs ** 2).sum(C_axis) / evals)
+
+        return group_lambdas

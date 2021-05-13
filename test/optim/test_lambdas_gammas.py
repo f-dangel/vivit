@@ -1,24 +1,25 @@
-"""In the existing test for gamma and lamdba (test_gammas.py and test_lambdas.py), the 
-lowrank-computations are compared to autograd. There might be the chance that there is 
+"""In the existing test for gamma and lamdba (test_gammas.py and test_lambdas.py), the
+lowrank-computations are compared to autograd. There might be the chance that there is
 the "same" mistake in both versions. So, here is another apporach to test the gammas and
-lambdas: We use a very simple linear network. In this case, we can give the loss, its 
-gradient and GGN in closed-form. We use these closed-form expressions to compute 
-reference lambdas and gammas, that we can compare the lowrank-computations with. 
+lambdas: We use a very simple linear network. In this case, we can give the loss, its
+gradient and GGN in closed-form. We use these closed-form expressions to compute
+reference lambdas and gammas, that we can compare the lowrank-computations with.
 
 The following tests are performed:
 - TEST 1 (Loss value): We compare the loss evaluated on the actual model with the loss
          that we derived theoretically
 - TEST 2 (Loss gradient): We compare the loss gradient computed by pytorch with the loss
          gradient that we derived theoretically
-- TEST 3 (Loss GGN): We compare the loss GGN computed by autograd (see section 
-         "Auxiliary Functions (3)") with the loss GGN that we derived theoretically 
+- TEST 3 (Loss GGN): We compare the loss GGN computed by autograd (see section
+         "Auxiliary Functions (3)") with the loss GGN that we derived theoretically
 - TEST 4, 5 (gammas and lambdas): We compute the lambdas and gammas with the lowrank-
-         utilities. As a comparison, we also compute the theoretically derived GGN, its 
-         eigenvectors and compute the lambdas and gammas "manually". 
+         utilities. As a comparison, we also compute the theoretically derived GGN, its
+         eigenvectors and compute the lambdas and gammas "manually".
 - TEST 6 (Newton step): Finally, we compare the Newton step computed by lowrank with a
-         "manual" computation. 
+         "manual" computation.
 """
 
+from test.optim.settings import make_criterion
 from test.utils import check_sizes_and_values
 
 import pytest
@@ -27,7 +28,7 @@ from backpack import backpack, extend
 from backpack.hessianfree.hvp import hessian_vector_product
 from backpack.utils.convert_parameters import vector_to_parameter_list
 
-from lowrank.optim import BaseComputations, DampedNewton
+from lowrank.optim.computations import BaseComputations
 from lowrank.optim.damping import ConstantDamping
 
 # ======================================================================================
@@ -397,7 +398,7 @@ def test_lambda_gamma(MSE_reduction, delta, seed_val):
             phi_lambdas[i, j] = torch.dot(eigvec @ phi_GGN, eigvec).item()
 
     # Now, compute lambdas and gammas with lowrank-utilities
-    top_k = DampedNewton.make_default_criterion(k=OUT_1)
+    top_k = make_criterion(k=OUT_1)
     param_groups = [
         {
             "params": [p for p in model.parameters() if p.requires_grad],
@@ -405,41 +406,38 @@ def test_lambda_gamma(MSE_reduction, delta, seed_val):
         }
     ]
     computations = BaseComputations()
+    savefield = "test_newton_step"
+    const_damping = ConstantDamping(delta)
 
     # Forward and backward pass
     loss = loss_func(model(X), torch.zeros(N, OUT_2))
     with backpack(
         *computations.get_extensions(param_groups),
-        extension_hook=computations.get_extension_hook(param_groups),
+        extension_hook=computations.get_extension_hook(
+            param_groups, const_damping, savefield
+        ),
     ):
         loss.backward()
-
-    # Computation of γ and λ
-    const_damping = ConstantDamping(delta)
-    for group in param_groups:
-        computations._eval_directions(group)
-        computations._filter_directions(group)
-        computations._eval_gammas(group)
-        computations._eval_lambdas(group)
-        computations._eval_deltas(group, const_damping)
-        computations._eval_newton_step(group)
 
     # ==========================
     # Test 4: gammas
     # ==========================
-    gammas_abs = torch.abs(list(computations._gammas.values())[0])
+    gammas_abs = torch.abs(list(computations._gram_computation._gammas.values())[0])
     check_sizes_and_values(gammas_abs, torch.abs(phi_gammas), atol=ATOL, rtol=RTOL)
 
     # ==========================
     # Test 5: lambdas
     # ==========================
-    lambdas = list(computations._lambdas.values())[0]
+    lambdas = list(computations._gram_computation._lambdas.values())[0]
     check_sizes_and_values(lambdas, phi_lambdas, atol=ATOL, rtol=RTOL)
 
     # ==========================
     # Test 6: Newton step
     # ==========================
-    newton_step = list(computations._newton_step.values())[0][0]
+    newton_step = [
+        [getattr(param, savefield) for param in group["params"]]
+        for group in param_groups
+    ][0][0]
     damped_GGN = phi_batch_GGN + delta * torch.eye(OUT_1)
     phi_newton_step = torch.solve(-phi_batch_grad.reshape(OUT_1, 1), damped_GGN)
     phi_newton_step = phi_newton_step.solution.reshape(-1)

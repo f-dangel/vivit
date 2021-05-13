@@ -4,28 +4,25 @@ from test.implementation.backpack import BackpackExtensions
 
 from backpack import backpack
 
+from lowrank.optim import GramComputations
 from lowrank.optim.computations import BaseComputations
-from lowrank.optim.damped_newton import DampedNewton
 
 
 class BackpackOptimExtensions(BackpackExtensions):
-    def gammas_ggn(self, top_k, subsampling_directions=None, subsampling_first=None):
+    def gammas_ggn(
+        self, param_groups, subsampling_directions=None, subsampling_first=None
+    ):
         """First-order directional derivatives along leading GGN eigenvectors via
         ``lowrank.optim.computations``.
 
         Args:
-            top_k (int): Number of leading eigenvectors used as directions. Will be
-                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
-                eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             subsampling_directions ([int] or None): Indices of samples used to compute
                 Newton directions. If ``None``, all samples in the batch will be used.
             subsampling_first ([int], optional): Sample indices used for individual
                 gradients.
         """
-        k = self._ggn_convert_to_top_k(top_k)
-
-        param_groups = self._param_groups_top_k_criterion(k)
-        computations = BaseComputations(
+        computations = GramComputations(
             subsampling_directions=subsampling_directions,
             subsampling_first=subsampling_first,
         )
@@ -34,34 +31,35 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         with backpack(
             *computations.get_extensions(param_groups),
-            extension_hook=computations.get_extension_hook(param_groups),
+            extension_hook=computations.get_extension_hook(
+                param_groups,
+                keep_backpack_buffers=False,
+                keep_gram_mat=False,
+                keep_gram_evecs=False,
+                keep_batch_size=False,
+                keep_gammas=True,
+                keep_lambdas=False,
+                keep_gram_evals=False,
+            ),
         ):
             loss.backward()
 
-        for group in param_groups:
-            computations._eval_directions(group)
-            computations._filter_directions(group)
-            computations._eval_gammas(group)
+        return [computations._gammas[id(group)] for group in param_groups]
 
-        return list(computations._gammas.values())[0]
-
-    def lambdas_ggn(self, top_k, subsampling_directions=None, subsampling_second=None):
+    def lambdas_ggn(
+        self, param_groups, subsampling_directions=None, subsampling_second=None
+    ):
         """Second-order directional derivatives along leading GGN eigenvectors via
         ``lowrank.optim.computations``.
 
         Args:
-            top_k (int): Number of leading eigenvectors used as directions. Will be
-                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
-                eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             subsampling_directions ([int] or None): Indices of samples used to compute
                 Newton directions. If ``None``, all samples in the batch will be used.
             subsampling_second ([int], optional): Sample indices used for individual
                 curvature matrices.
         """
-        k = self._ggn_convert_to_top_k(top_k)
-
-        param_groups = self._param_groups_top_k_criterion(k)
-        computations = BaseComputations(
+        computations = GramComputations(
             subsampling_directions=subsampling_directions,
             subsampling_second=subsampling_second,
         )
@@ -70,20 +68,24 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         with backpack(
             *computations.get_extensions(param_groups),
-            extension_hook=computations.get_extension_hook(param_groups),
+            extension_hook=computations.get_extension_hook(
+                param_groups,
+                keep_backpack_buffers=False,
+                keep_gram_mat=False,
+                keep_gram_evecs=False,
+                keep_batch_size=False,
+                keep_gammas=False,
+                keep_lambdas=True,
+                keep_gram_evals=False,
+            ),
         ):
             loss.backward()
 
-        for group in param_groups:
-            computations._eval_directions(group)
-            computations._filter_directions(group)
-            computations._eval_lambdas(group)
-
-        return list(computations._lambdas.values())[0]
+        return [computations._lambdas[id(group)] for group in param_groups]
 
     def newton_step(
         self,
-        top_k,
+        param_groups,
         damping,
         subsampling_directions=None,
         subsampling_first=None,
@@ -92,9 +94,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         """Directionally-damped Newton step along the top-k GGN eigenvectors.
 
         Args:
-            top_k (int): Number of leading eigenvectors used as directions. Will be
-                clipped to ``[1, max]`` with ``max`` the maximum number of nontrivial
-                eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             damping (lowrank.optim.damping.BaseDamping): Policy for selecting
                 dampings along a direction from first- and second- order directional
                 derivatives.
@@ -105,9 +105,6 @@ class BackpackOptimExtensions(BackpackExtensions):
             subsampling_second ([int], optional): Sample indices used for individual
                 curvature matrices.
         """
-        k = self._ggn_convert_to_top_k(top_k)
-
-        param_groups = self._param_groups_top_k_criterion(k)
         computations = BaseComputations(
             subsampling_directions=subsampling_directions,
             subsampling_first=subsampling_first,
@@ -116,24 +113,30 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         _, _, loss = self.problem.forward_pass()
 
+        savefield = "test_newton_step"
+
         with backpack(
             *computations.get_extensions(param_groups),
-            extension_hook=computations.get_extension_hook(param_groups),
+            extension_hook=computations.get_extension_hook(
+                param_groups,
+                damping,
+                savefield,
+                keep_gram_mat=False,
+                keep_gram_evals=False,
+                keep_gram_evecs=False,
+                keep_gammas=False,
+                keep_lambdas=False,
+                keep_batch_size=False,
+                keep_deltas=False,
+                keep_newton_step=False,
+                keep_backpack_buffers=False,
+            ),
         ):
             loss.backward()
 
-        for group in param_groups:
-            computations._eval_directions(group)
-            computations._filter_directions(group)
-            computations._eval_gammas(group)
-            computations._eval_lambdas(group)
-            computations._eval_deltas(group, damping)
-            computations._eval_newton_step(group)
+        newton_step = [
+            [getattr(param, savefield) for param in group["params"]]
+            for group in param_groups
+        ]
 
-        return list(computations._newton_step.values())[0]
-
-    def _param_groups_top_k_criterion(self, k):
-        """Put all parameters in a single group. Use top-k criterion for directions."""
-        top_k = DampedNewton.make_default_criterion(k=k)
-
-        return [{"params": list(self.problem.model.parameters()), "criterion": top_k}]
+        return newton_step

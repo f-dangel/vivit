@@ -1,9 +1,4 @@
-"""
-
-Note:
-    This file is (almost) a copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/base.py#L1-L33 # noqa: B950
-"""
+import warnings
 
 import numpy
 import torch
@@ -113,34 +108,70 @@ class ExtensionsImplementation:
 
         return min(num_evals, D)
 
-    def _ggn_convert_to_top_k(self, top_space, ggn_subsampling=None):
-        """Convert argument specifying the top eigenspace into an absolute number.
+    @staticmethod
+    def _degeneracy_warning(evals):
+        """Warn if eigenvalues are degenerate and directions not unique.
 
-        Args:
-            top_space (float or int): If integer, describes the absolute number of top
-                non-trivial eigenvalues to be considered at most. If float, describes
-                the relative number (ratio between 0. and 1., relative to the nontrivial
-                eigenspace) of leading eigenvectors that will be used as directions.
-                Uses at least one, and at most all nontrivial eigenvalues.
-            ggn_subsampling ([int]): Mini-batch indices of samples used in the GGN.
-                ``None`` uses the full batch.
-
-        Returns:
-            int: Absolute number of top eigenvalues to be considered.
-
-        Raises:
-            ValueError: If the input is of incorrect type
+        ``evals`` are assumed to be sorted.
         """
-        nontrivial_evals = self._ggn_rank(subsampling=ggn_subsampling)
+        degeneracy = torch.isclose(evals[1:], evals[:-1])
+        if torch.any(degeneracy):
+            warnings.warn(
+                "Eigenvalue degeneracy detected!"
+                + " This usually leads to failing tests as directions are not unique."
+                + f"\nGot eigenvalues:\n{evals}"
+                + f"\nDegeneracy with neighboring eigenvalue detected:\n{degeneracy}"
+            )
 
-        if isinstance(top_space, int):
-            k = top_space
-        elif isinstance(top_space, float):
-            k = int(top_space * nontrivial_evals)
-        else:
-            raise ValueError(f"Input must be int or float. Got {top_space}")
 
-        # clip to below by 1 and above by number of nontrivial eigenvalues
-        k = min(nontrivial_evals, max(k, 1))
+def parameter_groups_to_idx(param_groups, parameters):
+    """Return indices for parameter groups in parameters."""
+    params_in_group_ids = [id(p) for group in param_groups for p in group["params"]]
+    params_ids = [id(p) for p in parameters]
 
-        return k
+    if len(params_in_group_ids) != len(set(params_in_group_ids)):
+        raise ValueError("Same parameters occur in different groups.")
+    if sorted(params_in_group_ids) != sorted(params_ids):
+        raise ValueError("Parameters and group parameters don't match.")
+
+    num_params = [param.numel() for param in parameters]
+    param_ids = [id(p) for p in parameters]
+    indices = []
+
+    for group in param_groups:
+        param_indices = []
+
+        for param in group["params"]:
+            param_idx = param_ids.index(id(param))
+
+            start = sum(num_params[:param_idx])
+            end = sum(num_params[: param_idx + 1])
+            param_indices += list(range(start, end))
+
+        indices.append(param_indices)
+
+    return indices
+
+
+def parameter_groups_to_param_idx(param_groups, parameters):
+    """Return indices for parameters in parameter groups w.r.t parameters."""
+    params_in_group_ids = [id(p) for group in param_groups for p in group["params"]]
+    params_ids = [id(p) for p in parameters]
+
+    if len(params_in_group_ids) != len(set(params_in_group_ids)):
+        raise ValueError("Same parameters occur in different groups.")
+    if sorted(params_in_group_ids) != sorted(params_ids):
+        raise ValueError("Parameters and group parameters don't match.")
+
+    param_ids = [id(p) for p in parameters]
+    indices = []
+
+    for group in param_groups:
+        param_indices = []
+
+        for param in group["params"]:
+            param_indices.append(param_ids.index(id(param)))
+
+        indices.append(param_indices)
+
+    return indices
