@@ -26,13 +26,7 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``tensor``.
     """
-    letters = get_letters(start_dim + tensor.dim())
-    out1_idx = letters[:start_dim]
-    out2_idx = letters[start_dim : 2 * start_dim]
-    sum_idx = letters[2 * start_dim :]
-
-    equation = f"{out1_idx}{sum_idx},{out2_idx}{sum_idx}->{out1_idx}{out2_idx}"
-    result = torch.einsum(equation, tensor, tensor)
+    result = partial_contract(tensor, tensor, (start_dim, start_dim))
 
     if flatten:
         result = reshape_as_square(result)
@@ -56,14 +50,7 @@ def pairwise2_dot(tensor, other, start_dim=1):
             dimension of ``tensor``, and ``otherⱼ`` is the ``j`` dimension of
             ``other``.
     """
-    letters = get_letters(start_dim + tensor.dim())
-    out1_idx = letters[:start_dim]
-    out2_idx = letters[start_dim : 2 * start_dim]
-    sum_idx = letters[2 * start_dim :]
-
-    equation = f"{out1_idx}{sum_idx},{out2_idx}{sum_idx}->{out1_idx}{out2_idx}"
-
-    return torch.einsum(equation, tensor, other)
+    return partial_contract(tensor, other, (start_dim, start_dim))
 
 
 def get_letters(num_letters):
@@ -210,57 +197,54 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
     return result
 
 
-def sqrt_gram_t_mat_prod(mat_list, parameters, savefield, start_dim):
-    """Multiply columns of ``mat`` with the transpose Gram matrix square root ``Uᵀ``.
-
-    The Gram matrix is ``Uᵀ U``.
+def partial_contract(tensor, other, start_dims):
+    """Compute partial scalar products. Contract dimensions from ``start_dims``.
 
     Args:
-        mat_list ([torch.Tensor]): List of tensors with identical trailing dimensions as
-            the parameters in ``params``, plus same leading dimension. ``Uᵀ`` is applied
-            to all vectors defined by the leading dimension.
-        parameters (iterable): Iterable object to traverse the parameters that con-
-            tribute to the Gram matrix square root.
-        savefield (str): Attribute field from which the current parameter's Gram matrix
-            square root will be fetched.
-        start_dim (int): ``1`` for gradient covariance, ``2`` for GGN matrices.
+        tensor (torch.Tensor): Left input to the scalar product.
+        other (torch.Tensor): Right input to the scalar product.
+        start_dims ([int, int]): List holding the dimensions at which the dot
+            product contractions starts.
 
     Returns:
-        torch.Tensor: Result of multiplication. Has shape ``[V, *]`` where ``*`` is the
-            Gram matrix column space dimension (``N`` for gradient covariance,
-            ``N * C`` for GGN factorization).
+        torch.Tensor: Pair-wise scalar products. Has ``sum(start_dims)`` dimensions.
 
     Raises:
-        ValueError: If matrices in ``mat_list`` don't have the same leading dimension.
+        ValueError: If the contracted dimensions don't match.
     """
-    V = {mat.shape[0] for mat in mat_list}
-    V_list = list(V)
-    if len(V_list) != 1:
-        raise ValueError(f"Vectorization dimension is not unique. Got {V_list}")
-    else:
-        V = V_list[0]
+    out_dim1, out_dim2 = start_dims
+    feature_dim1, feature_dim2 = tensor.dim() - out_dim1, other.dim() - out_dim2
 
-    def gram_t_mat_prod(p, mat):
-        """Multiply trailing dimensions of ``mat`` with ``p``'s transpose Gram matrix
-        square root ``Uᵀ``.
+    if feature_dim1 != feature_dim2:
+        raise ValueError("Trailing dimensions don't match.")
 
-        Args:
-            p (torch.nn.Parameter): Parameter whose ``Uᵀ`` will be used.
-            mat (torch.Tensor): Matrix to be multiplied with ``Uᵀ``.
+    letters = [out_dim1, out_dim2, feature_dim1]
+    out_idx1, out_idx2, sum_idx = split_list(get_letters(sum(letters)), letters)
 
-        Returns:
-            torch.Tensor: Result of the matrix-multiply ``Uᵀ @ mat``.
-        """
-        gram_sqrt = getattr(p, savefield)
+    equation = f"{out_idx1}{sum_idx},{out_idx2}{sum_idx}->{out_idx1}{out_idx2}"
 
-        letters = get_letters(gram_sqrt.dim() + 1)
+    return torch.einsum(equation, tensor, other)
 
-        col_idx = letters[:start_dim]
-        V_idx = letters[start_dim]
-        sum_idx = letters[start_dim + 1 :]
 
-        equation = f"{V_idx}{sum_idx},{col_idx}{sum_idx}->{V_idx}{col_idx}"
+def split_list(sequence, lengths):
+    """Consecutively split a list into sub-lists.
 
-        return torch.einsum(equation, mat, gram_sqrt).reshape(V, -1)
+    Args:
+        sequence (list): Sequence that will be split.
+        lengths ([int]): List containing the sub-list lengths. The sub-list lengths
+            must sum up to the length of ``sequence``.
 
-    return sum(gram_t_mat_prod(p, mat) for p, mat in zip(parameters, mat_list))
+    Yields:
+        list: Next sublist
+
+    Raises:
+        ValueError: If the sub-list lengths don't sum to the total sequence length.
+    """
+    if len(sequence) != sum(lengths):
+        raise ValueError("Sub-list lengths don't sum to length of the full list.")
+
+    idx = 0
+
+    for length in lengths:
+        yield sequence[idx : idx + length]
+        idx += length

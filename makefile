@@ -73,6 +73,9 @@ examples:
 	@cd exp/examples && python example_ggn_exact.py
 	@cd exp/examples && python example_optimizer_mnist.py
 	@cd exp/examples && python example_toy_problem.py
+	@cd exp/examples && python example_efficient_quadratic_toy_problem.py
+	@cd exp/examples && python example_directional_derivatives.py
+	@cd exp/examples && python example_newton_step.py
 
 .PHONY: install-lint
 

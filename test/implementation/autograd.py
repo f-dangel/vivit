@@ -1,10 +1,4 @@
-"""
-
-Note:
-    This file is (almost) a copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/implementation/autograd.py#L1-L119 # noqa: B950
-"""
-from test.implementation.base import ExtensionsImplementation
+from test.implementation.base import ExtensionsImplementation, parameter_groups_to_idx
 
 import torch
 from backpack.hessianfree.ggnvp import ggn_vector_product, ggn_vector_product_from_plist
@@ -259,16 +253,16 @@ class AutogradExtensions(ExtensionsImplementation):
             return ggn_vec_list
 
     def gammas_ggn(
-        self, top_space, ggn_subsampling=None, grad_subsampling=None, directions=False
+        self,
+        param_groups,
+        ggn_subsampling=None,
+        grad_subsampling=None,
+        directions=False,
     ):
         """First-order derivatives ``γ[n, d]`` along the leading GGN eigenvectors.
 
         Args:
-            top_space (float or int): If integer, describes the absolute number of top
-                non-trivial eigenvalues to be considered at most. If float, describes
-                the relative number (ratio between 0. and 1., relative to the nontrivial
-                eigenspace) of leading eigenvectors that will be used as directions.
-                Uses at least one, and at most all nontrivial eigenvalues.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
             grad_subsampling ([int], optional): Sample indices used for individual
                 gradients.
@@ -279,9 +273,10 @@ class AutogradExtensions(ExtensionsImplementation):
                 Else, a second tensor containing the eigenvectors is returned.
         """
         N, _ = self._mean_reduction()
-        _, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
+        _, group_evecs = self.directions_ggn(param_groups, subsampling=ggn_subsampling)
 
         grad_batch = self.batch_grad(subsampling=grad_subsampling)
+
         # compensate individual gradient scaling from BackPACK
         individual_gradients = [g * N for g in grad_batch]
 
@@ -290,37 +285,54 @@ class AutogradExtensions(ExtensionsImplementation):
             [g.flatten(start_dim=1) for g in individual_gradients], dim=1
         )
 
-        gammas = torch.einsum("ni,id->nd", individual_gradients, evecs)
+        indices = parameter_groups_to_idx(
+            param_groups, list(self.problem.model.parameters())
+        )
+        group_igrad = [individual_gradients[:, idx] for idx in indices]
+
+        group_gammas = []
+
+        for igrad, evecs in zip(group_igrad, group_evecs):
+            group_gammas.append(torch.einsum("ni,id->nd", igrad, evecs))
 
         if directions:
-            return gammas, evecs
+            return group_gammas, group_evecs
         else:
-            return gammas
+            return group_gammas
 
-    def lambdas_ggn(self, top_space, ggn_subsampling=None, lambda_subsampling=None):
+    def lambdas_ggn(self, param_groups, ggn_subsampling=None, lambda_subsampling=None):
         """Second-order derivatives ``λ[n, d]`` along the leading GGN eigenvectors.
 
         Uses the exact GGN for λ.
 
         Args:
-            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
-                eigenspace) of leading eigenvectors that will be used as directions.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
             lambda_subsampling ([int], optional): Sample indices used for lambdas.
 
         Returns:
             torch.Tensor: 2d tensor containing ``λ[n, d]``.
         """
+
         N, _ = self._mean_reduction()
-        evals, evecs = self.directions_ggn(top_space, subsampling=ggn_subsampling)
+        group_evals, group_evecs = self.directions_ggn(
+            param_groups, subsampling=ggn_subsampling
+        )
 
         if lambda_subsampling is None:
             lambda_subsampling = list(range(N))
 
-        D = evals.numel()
-        N_lambda = len(lambda_subsampling)
+        group_lambdas = []
 
-        lambdas = torch.zeros(N_lambda, D, device=evals.device)
+        for evals in group_evals:
+            D = evals.numel()
+            N_lambda = len(lambda_subsampling)
+
+            group_lambdas.append(torch.zeros(N_lambda, D, device=evals.device))
+
+        indices = parameter_groups_to_idx(
+            param_groups, list(self.problem.model.parameters())
+        )
 
         for out_idx, n in enumerate(lambda_subsampling):
             ggn_n = self.ggn(subsampling=[n])
@@ -328,19 +340,21 @@ class AutogradExtensions(ExtensionsImplementation):
             # compensate subsampling scale
             ggn_n *= N
 
-            ggn_n_evecs = torch.einsum("ij,jd->id", ggn_n, evecs)
-            lambdas_n = torch.einsum("id,id->d", evecs, ggn_n_evecs)
+            group_ggn_n = [ggn_n[idx, :][:, idx] for idx in indices]
 
-            lambdas[out_idx] = lambdas_n
+            for group_idx, (ggn_n, evecs) in enumerate(zip(group_ggn_n, group_evecs)):
+                ggn_n_evecs = torch.einsum("ij,jd->id", ggn_n, evecs)
+                group_lambdas_n = torch.einsum("id,id->d", evecs, ggn_n_evecs)
 
-        return lambdas
+                group_lambdas[group_idx][out_idx] = group_lambdas_n
 
-    def directions_ggn(self, top_space, subsampling=None):
+        return group_lambdas
+
+    def directions_ggn(self, param_groups, subsampling=None):
         """Compute the leading GGN eigenvalues and eigenvectors.
 
         Args:
-            top_space (float): Ratio (between 0 and 1, relative to the nontrivial
-                eigenspace) of leading eigenvectors that will be used as directions.
+            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
 
         Returns:
@@ -355,11 +369,25 @@ class AutogradExtensions(ExtensionsImplementation):
         if subsampling is not None:
             ggn *= N / len(subsampling)
 
-        evals, evecs = ggn.symeig(eigenvectors=True)
+        indices = parameter_groups_to_idx(
+            param_groups, list(self.problem.model.parameters())
+        )
+        group_ggn = [ggn[idx, :][:, idx] for idx in indices]
 
-        # select top eigenspace
-        k = self._ggn_convert_to_top_k(top_space, ggn_subsampling=subsampling)
-        evals = evals[-k:]
-        evecs = evecs[:, -k:]
+        group_evals = []
+        group_evecs = []
 
-        return evals, evecs
+        for ggn, group in zip(group_ggn, param_groups):
+            evals, evecs = ggn.symeig(eigenvectors=True)
+
+            # select top eigenspace
+            criterion = group["criterion"]
+            keep = criterion(evals)
+
+            evals = evals[keep]
+            self._degeneracy_warning(evals)
+
+            group_evals.append(evals)
+            group_evecs.append(evecs[:, keep])
+
+        return group_evals, group_evecs
