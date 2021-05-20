@@ -31,11 +31,11 @@ jobs:
         make install-test
         make install
     - name: Run test
-      if: contains('refs/heads/master refs/heads/development refs/heads/release', github.ref)
+      if: contains('refs/heads/master refs/heads/release', github.ref)
       run: |
         make test
     - name: Run test-light
-      if: contains('refs/heads/master refs/heads/development refs/heads/release', github.ref) != 1
+      if: contains('refs/heads/master refs/heads/release', github.ref) != 1
       run: |
         make test-light
 
