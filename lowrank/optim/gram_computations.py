@@ -33,6 +33,8 @@ class GramComputations:
         subsampling_second=None,
         extension_cls_directions=SqrtGGNExact,
         extension_cls_second=SqrtGGNExact,
+        compute_gammas=True,
+        compute_lambdas=True,
         verbose=False,
     ):
         """Store indices of samples used for each task.
@@ -51,6 +53,10 @@ class GramComputations:
             extension_cls_second (backpack.backprop_extension.BackpropExtension):
                 BackPACK extension class used to compute second-order directional
                 derivatives.
+            compute_gammas (bool, optional): Whether to compute first-order directional
+                derivatives. Default: ``True``
+            compute_lambdas (bool, optional): Whether to compute second-order
+                directional derivatives. Default: ``True``
             verbose (bool, optional): Turn on verbose mode. Default: ``False``.
         """
         self._extension_cls_first = BatchGrad
@@ -94,6 +100,16 @@ class GramComputations:
 
         self._verbose = verbose
 
+        self._compute_gammas = compute_gammas
+        self._compute_lambdas = compute_lambdas
+
+        # safe guards if directional derivatives are not computed
+        if not self._compute_gammas:
+            assert subsampling_first is None
+        if not self._compute_lambdas:
+            assert extension_cls_second == extension_cls_directions
+            assert subsampling_second == subsampling_directions
+
         # filled via side effects during update step computation, keys are group ids
         self._gram_evals = {}
         self._gram_evecs = {}
@@ -101,9 +117,6 @@ class GramComputations:
         self._gammas = {}
         self._lambdas = {}
         self._batch_size = {}
-
-        # hook filled via side effects
-        self._dot_products_hook = None
 
     def get_extensions(self, param_groups):
         """Return the instantiated BackPACK extensions required in the backward pass.
@@ -115,10 +128,19 @@ class GramComputations:
             [backpack.extensions.backprop_extension.BackpropExtension]: List of
                 extensions that can be handed into a ``with backpack(...)`` context.
         """
-        return [
+        extensions = [
             ext_cls(subsampling=subsampling)
             for ext_cls, subsampling in self._merged_extensions.items()
         ]
+
+        if not self._compute_gammas:
+            extensions = [
+                ext
+                for ext in extensions
+                if not isinstance(ext, self._extension_cls_first)
+            ]
+
+        return extensions
 
     def get_extension_hook(
         self,
@@ -210,6 +232,9 @@ class GramComputations:
             keep_backpack_buffers=keep_backpack_buffers,
         )
 
+        compute_gammas = self._compute_gammas
+        compute_lambdas = self._compute_lambdas
+
         def param_computation(self, param):
             """Compute dot products for a parameter used in directional derivatives.
 
@@ -225,8 +250,11 @@ class GramComputations:
             result = {}
 
             result["V_t_V"] = param_computation_V_t_V(param)
-            result["V_t_g_n"] = param_computation_V_t_g_n(param)
-            result["V_n_t_V"] = param_computation_V_n_t_V(param)
+
+            if compute_gammas:
+                result["V_t_g_n"] = param_computation_V_t_g_n(param)
+            if compute_lambdas:
+                result["V_n_t_V"] = param_computation_V_n_t_V(param)
 
             param_computation_memory_cleanup(param)
 
@@ -278,6 +306,9 @@ class GramComputations:
             keep_batch_size=keep_batch_size,
         )
 
+        compute_gammas = self._compute_gammas
+        compute_lambdas = self._compute_lambdas
+
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
 
@@ -289,8 +320,10 @@ class GramComputations:
             """
             group_hook_directions(accumulation, group)
             group_hook_filter_directions(accumulation, group)
-            group_hook_gammas(accumulation, group)
-            group_hook_lambdas(accumulation, group)
+            if compute_gammas:
+                group_hook_gammas(accumulation, group)
+            if compute_lambdas:
+                group_hook_lambdas(accumulation, group)
             group_hook_memory_cleanup(accumulation, group)
 
         return group_hook
@@ -484,6 +517,9 @@ class GramComputations:
                 self._savefield_first,
                 self._savefield_second,
             }
+
+            if not self._compute_gammas:
+                savefields.remove(self._savefield_first)
 
         for savefield in savefields:
             delattr(param, savefield)
@@ -687,9 +723,9 @@ class GramComputations:
             buffers.append("_gram_evals")
         if not keep_gram_evecs:
             buffers.append("_gram_evecs")
-        if not keep_gammas:
+        if not keep_gammas and self._compute_gammas:
             buffers.append("_gammas")
-        if not keep_lambdas:
+        if not keep_lambdas and self._compute_lambdas:
             buffers.append("_lambdas")
         if not keep_batch_size:
             buffers.append("_batch_size")
