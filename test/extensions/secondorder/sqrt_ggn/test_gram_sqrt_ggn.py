@@ -1,4 +1,4 @@
-"""Tests for ``lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn.py``."""
+"""Tests for ``vivit.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn.py``."""
 
 from test.implementation.autograd import AutogradExtensions
 from test.implementation.backpack import BackpackExtensions
@@ -8,7 +8,7 @@ from test.utils import check_sizes_and_values
 
 import pytest
 
-from lowrank.utils.eig import symeig
+from vivit.utils.eig import symeig
 
 PROBLEMS = make_test_problems(SETTINGS)
 IDS = [problem.make_id() for problem in PROBLEMS]

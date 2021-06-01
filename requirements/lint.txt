@@ -1,4 +1,4 @@
-# Linting requirements for lowrank
+# Linting requirements for vivit
 
 black
 

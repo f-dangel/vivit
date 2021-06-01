@@ -5,7 +5,7 @@ import os
 import pytest
 import torch
 
-from lowrank.utils.eig import shift_diag, stable_symeig, symeig_psd
+from vivit.utils.eig import shift_diag, stable_symeig, symeig_psd
 
 T_1 = torch.diag(torch.Tensor([1.1, 2.2, 9.9]))
 T_2 = torch.Tensor([[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 2.2]])

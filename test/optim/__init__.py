@@ -1,1 +1,1 @@
-"""Tests for ``lowrank.optim``."""
+"""Tests for ``vivit.optim``."""

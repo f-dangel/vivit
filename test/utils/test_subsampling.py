@@ -2,8 +2,8 @@
 import pytest
 from backpack.extensions import BatchGrad
 
-from lowrank.extensions import SqrtGGNExact
-from lowrank.utils.subsampling import (
+from vivit.extensions import SqrtGGNExact
+from vivit.utils.subsampling import (
     merge_extensions,
     merge_multiple_subsamplings,
     merge_subsamplings,

@@ -1,1 +1,1 @@
-"""Tests for `lowrank.extensions.firstorder`."""
+"""Tests for `vivit.extensions.firstorder`."""

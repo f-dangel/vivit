@@ -1,4 +1,4 @@
-"""Tests for ``lowrank.extensions.secondorder.sqrt_ggn.__init__.py``."""
+"""Tests for ``vivit.extensions.secondorder.sqrt_ggn.__init__.py``."""
 
 from test.implementation.autograd import AutogradExtensions
 from test.implementation.backpack import BackpackExtensions

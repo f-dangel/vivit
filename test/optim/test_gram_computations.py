@@ -1,4 +1,4 @@
-"""Test ``lowrank.optim.gram_computations``."""
+"""Test ``vivit.optim.gram_computations``."""
 
 from test.implementation.optim_autograd import AutogradOptimExtensions
 from test.implementation.optim_backpack import BackpackOptimExtensions

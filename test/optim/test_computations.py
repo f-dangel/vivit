@@ -1,4 +1,4 @@
-"""Test ``lowrank.optim.computations``."""
+"""Test ``vivit.optim.computations``."""
 
 from test.implementation.optim_autograd import AutogradOptimExtensions
 from test.implementation.optim_backpack import BackpackOptimExtensions
@@ -21,7 +21,7 @@ from test.utils import check_sizes_and_values
 
 import pytest
 
-from lowrank.optim.damping import ConstantDamping
+from vivit.optim.damping import ConstantDamping
 
 CONSTANT_DAMPING_VALUES = [1.0]
 DAMPINGS = [ConstantDamping(const) for const in CONSTANT_DAMPING_VALUES]
@@ -57,7 +57,7 @@ def test_computations_newton_step(
     Args:
         top_k (function): Criterion to select Gram space directions.
         problem (ExtensionsTestProblem): Test case.
-        damping (lowrank.optim.damping.BaseDamping): Policy for selecting dampings along
+        damping (vivit.optim.damping.BaseDamping): Policy for selecting dampings along
             a direction from first- and second- order directional derivatives.
         subsampling_directions ([int] or None): Indices of samples used to compute
             Newton directions. If ``None``, all samples in the batch will be used.

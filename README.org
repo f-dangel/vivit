@@ -15,7 +15,7 @@ This document explains the directory structure and development workflow.
 4. Every time you work on the project, activate this environment
 
    #+begin_src bash
-     conda activate lowrank
+     conda activate vivit
    #+end_src
 
    (there exist tools to automate this, for example [[https://direnv.net/][direnv]])
@@ -34,11 +34,11 @@ Everything is handled through the [[file:makefile][ =makefile= ]]. You can type 
 
 * Directory structure
 
-- =lowrank= :: Main library containing the numerical tricks.
+- =vivit= :: Main library containing the numerical tricks.
 
 - =requirements= :: Development tools dependencies for the main library.
 
-- =test= :: Tests for the =lowrank= library.
+- =test= :: Tests for the =vivit= library.
 
 - =exp= :: Experiments for the paper. They should be documented for a third party. I.e., how to run an experiment, generate plots, and how to reuse the original data.
 

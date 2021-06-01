@@ -1,9 +1,9 @@
 """In the existing test for gamma and lamdba (test_gammas.py and test_lambdas.py), the
-lowrank-computations are compared to autograd. There might be the chance that there is
+vivit-computations are compared to autograd. There might be the chance that there is
 the "same" mistake in both versions. So, here is another apporach to test the gammas and
 lambdas: We use a very simple linear network. In this case, we can give the loss, its
 gradient and GGN in closed-form. We use these closed-form expressions to compute
-reference lambdas and gammas, that we can compare the lowrank-computations with.
+reference lambdas and gammas, that we can compare the vivit-computations with.
 
 The following tests are performed:
 - TEST 1 (Loss value): We compare the loss evaluated on the actual model with the loss
@@ -12,10 +12,10 @@ The following tests are performed:
          gradient that we derived theoretically
 - TEST 3 (Loss GGN): We compare the loss GGN computed by autograd (see section
          "Auxiliary Functions (3)") with the loss GGN that we derived theoretically
-- TEST 4, 5 (gammas and lambdas): We compute the lambdas and gammas with the lowrank-
+- TEST 4, 5 (gammas and lambdas): We compute the lambdas and gammas with the vivit-
          utilities. As a comparison, we also compute the theoretically derived GGN, its
          eigenvectors and compute the lambdas and gammas "manually".
-- TEST 6 (Newton step): Finally, we compare the Newton step computed by lowrank with a
+- TEST 6 (Newton step): Finally, we compare the Newton step computed by vivit with a
          "manual" computation.
 """
 
@@ -28,8 +28,8 @@ from backpack import backpack, extend
 from backpack.hessianfree.hvp import hessian_vector_product
 from backpack.utils.convert_parameters import vector_to_parameter_list
 
-from lowrank.optim.computations import BaseComputations
-from lowrank.optim.damping import ConstantDamping
+from vivit.optim.computations import BaseComputations
+from vivit.optim.damping import ConstantDamping
 
 # ======================================================================================
 # Auxiliary Functions (1)
@@ -397,7 +397,7 @@ def test_lambda_gamma(MSE_reduction, delta, seed_val):
             phi_gammas[i, j] = torch.dot(eigvec, phi_grad).item()
             phi_lambdas[i, j] = torch.dot(eigvec @ phi_GGN, eigvec).item()
 
-    # Now, compute lambdas and gammas with lowrank-utilities
+    # Now, compute lambdas and gammas with vivit-utilities
     top_k = make_criterion(k=OUT_1)
     param_groups = [
         {

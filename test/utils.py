@@ -1,4 +1,4 @@
-"""Utility functions to test `lowrank`."""
+"""Utility functions to test `vivit`."""
 
 import numpy as np
 import torch

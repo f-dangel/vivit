@@ -1,1 +1,1 @@
-"""Tests for `lowrank.extensions.firstorder.batch_grad`."""
+"""Tests for `vivit.extensions.firstorder.batch_grad`."""

@@ -1,4 +1,4 @@
-# Dependencies for testing lowrank
+# Dependencies for testing vivit
 
 coveralls
 pytest

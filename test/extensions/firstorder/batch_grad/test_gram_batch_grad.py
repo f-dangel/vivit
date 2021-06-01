@@ -1,4 +1,4 @@
-"""Tests for lowrank/gram_grad.py."""
+"""Tests for vivit/gram_grad.py."""
 
 from test.implementation.autograd import AutogradExtensions
 from test.implementation.backpack import BackpackExtensions
@@ -8,11 +8,11 @@ from test.utils import check_sizes_and_values
 
 import pytest
 
-from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
+from vivit.extensions.firstorder.batch_grad.gram_batch_grad import (
     CenteredGramBatchGrad,
     GramBatchGrad,
 )
-from lowrank.utils.eig import symeig
+from vivit.utils.eig import symeig
 
 PROBLEMS = make_test_problems(SETTINGS)
 IDS = [problem.make_id() for problem in PROBLEMS]

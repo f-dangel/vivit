@@ -5,7 +5,7 @@ from test.utils import get_available_devices
 import pytest
 import torch
 
-from lowrank.optim.damping import BootstrapDamping
+from vivit.optim.damping import BootstrapDamping
 
 DAMPING_GRIDS = [torch.logspace(-3, 2, 150)]
 DAMPING_GRIDS_IDS = ["damping_grid=torch.logspace(-3, 2, 150)"]

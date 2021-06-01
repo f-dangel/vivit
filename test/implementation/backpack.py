@@ -8,18 +8,18 @@ import backpack.extensions as new_ext
 import torch
 from backpack import backpack
 
-from lowrank.extensions.firstorder.batch_grad.gram_batch_grad import (
+from vivit.extensions.firstorder.batch_grad.gram_batch_grad import (
     CenteredBatchGrad,
     CenteredGramBatchGrad,
     GramBatchGrad,
 )
-from lowrank.extensions.secondorder.sqrt_ggn import SqrtGGNExact, SqrtGGNMC
-from lowrank.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
+from vivit.extensions.secondorder.sqrt_ggn import SqrtGGNExact, SqrtGGNMC
+from vivit.extensions.secondorder.sqrt_ggn.gram_sqrt_ggn import (
     GramSqrtGGNExact,
     GramSqrtGGNMC,
 )
-from lowrank.utils.ggn import V1_t_V2, V_mat_prod, V_t_mat_prod, V_t_V
-from lowrank.utils.gram import reshape_as_square
+from vivit.utils.ggn import V1_t_V2, V_mat_prod, V_t_mat_prod, V_t_V
+from vivit.utils.gram import reshape_as_square
 
 
 class BackpackExtensions(ExtensionsImplementation):

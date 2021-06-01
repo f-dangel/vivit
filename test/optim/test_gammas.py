@@ -1,4 +1,4 @@
-"""Tests computations of first-order directional derivatives ``lowrank.optim``."""
+"""Tests computations of first-order directional derivatives ``vivit.optim``."""
 
 from test.implementation.autograd import AutogradExtensions
 from test.implementation.backpack import BackpackExtensions

@@ -2,9 +2,9 @@
 
 help:
 	@echo "install"
-	@echo "        Install lowrank and dependencies"
+	@echo "        Install vivit and dependencies"
 	@echo "uninstall"
-	@echo "        Unstall lowrank"
+	@echo "        Unstall vivit"
 	@echo "install-dev"
 	@echo "        Install only the development tools"
 	@echo "install-test"
@@ -28,7 +28,7 @@ help:
 	@echo "flake8"
 	@echo "        Run flake8 on the project"
 	@echo "conda-env"
-	@echo "        Create conda environment 'lowrank' with dev setup"
+	@echo "        Create conda environment 'vivit' with dev setup"
 	@echo "darglint-check"
 	@echo "        Run darglint (docstring check) on the project"
 	@echo "pydocstyle-check"
@@ -43,7 +43,7 @@ install:
 .PHONY: uninstall
 
 uninstall:
-	@pip uninstall lowrank
+	@pip uninstall vivit
 
 
 .PHONY: install-dev
@@ -60,10 +60,10 @@ install-test:
 .PHONY: test test-light
 
 test:
-	@pytest -vx --run-optional-tests=expensive --cov=lowrank test
+	@pytest -vx --run-optional-tests=expensive --cov=vivit test
 
 test-light:
-	@pytest -vx --cov=lowrank test
+	@pytest -vx --cov=vivit test
 
 .PHONY: examples
 
@@ -106,7 +106,7 @@ flake8:
 .PHONY: darglint-check
 
 darglint-check:
-	@darglint --verbosity 2 lowrank
+	@darglint --verbosity 2 vivit
 
 .PHONY: pydocstyle-check
 

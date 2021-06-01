@@ -1,11 +1,11 @@
-"""BackPACK implementation of operations used in ``lowrank.optim``."""
+"""BackPACK implementation of operations used in ``vivit.optim``."""
 
 from test.implementation.backpack import BackpackExtensions
 
 from backpack import backpack
 
-from lowrank.optim import GramComputations
-from lowrank.optim.computations import BaseComputations
+from vivit.optim import GramComputations
+from vivit.optim.computations import BaseComputations
 
 
 class BackpackOptimExtensions(BackpackExtensions):
@@ -13,7 +13,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         self, param_groups, subsampling_directions=None, subsampling_first=None
     ):
         """First-order directional derivatives along leading GGN eigenvectors via
-        ``lowrank.optim.computations``.
+        ``vivit.optim.computations``.
 
         Args:
             param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
@@ -50,7 +50,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         self, param_groups, subsampling_directions=None, subsampling_second=None
     ):
         """Second-order directional derivatives along leading GGN eigenvectors via
-        ``lowrank.optim.computations``.
+        ``vivit.optim.computations``.
 
         Args:
             param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
@@ -95,7 +95,7 @@ class BackpackOptimExtensions(BackpackExtensions):
 
         Args:
             param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
-            damping (lowrank.optim.damping.BaseDamping): Policy for selecting
+            damping (vivit.optim.damping.BaseDamping): Policy for selecting
                 dampings along a direction from first- and second- order directional
                 derivatives.
             subsampling_directions ([int] or None): Indices of samples used to compute
