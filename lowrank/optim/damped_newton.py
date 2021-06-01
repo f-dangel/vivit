@@ -61,21 +61,22 @@ class DampedNewton(torch.optim.Optimizer):
 
         Args:
             keep_gram_mat (bool, optional): Keep buffers for Gram matrix under group id
-                in ``self._gram_computation._gram_mat``. Default: ``False``
+                in ``self._computations._gram_computation._gram_mat``.
+                Default: ``False``
             keep_gram_evals (bool, optional): Keep buffers for filtered Gram matrix
-                eigenvalues under group id in ``self._gram_computation._gram_evals``.
-                Default: ``False``
+                eigenvalues under group id in
+                ``self._computations._gram_computation._gram_evals``. Default: ``False``
             keep_gram_evecs (bool, optional): Keep buffers for filtered Gram matrix
-                eigenvectors under group id in ``self._gram_computation._gram_evecs``.
-                Default: ``False``
+                eigenvectors under group id in
+                ``self._computations._gram_computation._gram_evecs``. Default: ``False``
             keep_gammas (bool, optional): Keep buffers for first-order directional
-                derivatives under group id in ``self._gram_computation._gammas``.
-                Default: ``False``
+                derivatives under group id in
+                ``self._computations._gram_computation._gammas``. Default: ``False``
             keep_lambdas (bool, optional): Keep buffers for second-order directional
-                derivatives under group id in ``self._gram_computation._lambdas``.
-                Default: ``False``
+                derivatives under group id in
+                ``self._computations._gram_computation._lambdas``. Default: ``False``
             keep_batch_size (bool, optional): Keep batch size for under group id
-                in ``self._gram_computation._lambdas``. Default: ``False``
+                in ``self._computations._gram_computation._lambdas``. Default: ``False``
             keep_deltas (bool, optional): Keep directional dampings under group id in
                 ``self._deltas``. Default: ``False``.
             keep_newton_step (bool, optional): Keep damped Newton step under group id

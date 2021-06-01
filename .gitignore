@@ -30,9 +30,10 @@ src/
 /exp/exp06_toy_example/results/
 /exp/exp06_toy_example/fig/
 /exp/exp06_toy_example/diagnostics/
-/exp/exp06_toy_example/diagnostics/
+/exp/exp07_cifar10/data/
 /exp/exp08_start_Adam_then_switch/data/
-/exp/exp08_start_Adam_then_switch/fig/
 /exp/exp08_start_Adam_then_switch/results/
-/exp/exp09_noisy_quadratic/fig
-/exp/exp09_noisy_quadratic/results
+/exp/exp08_start_Adam_then_switch/fig/
+/exp/exp09_noisy_quadratic/fig/
+/exp/exp09_noisy_quadratic/results/
+/exp/exp09_noisy_quadratic/Backup/
