@@ -6,7 +6,8 @@
 **.blg
 **.log
 **.out
-tex/paper/main.pdf
+tex/model_paper/main.pdf
+tex/optim_paper/iclr2022_conference.pdf
 **.synctex.gz
 **/auto
 **.fdb_latexmk
