@@ -3,12 +3,12 @@ name: Build paper
 on:
   push:
     branches:
-      - '*'
+      - development
+      - main
   pull_request:
     branches:
       - development
-      - master
-      - release
+      - main
 
 jobs:
   latex:
@@ -19,6 +19,6 @@ jobs:
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v2
         with:
-          working_directory: tex/paper
+          working_directory: tex/model_paper
           root_file: main.tex
           latexmk_shell_escape: true
