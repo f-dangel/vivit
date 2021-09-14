@@ -4,6 +4,7 @@ import math
 from functools import partial
 
 from vivit.extensions import SqrtGGNExact
+from vivit.optim.damping import _DirectionalCoefficients
 from vivit.optim.gram_computations import GramComputations
 from vivit.utils.ggn import V_mat_prod
 from vivit.utils.hooks import ParameterGroupsHook
@@ -59,7 +60,7 @@ class BaseComputations:
         self._verbose = verbose
 
         # filled via side effects during update step computation, keys are group ids
-        self._deltas = {}
+        self._coefficients = {}
         self._newton_step = {}
 
     def get_extensions(self, param_groups):
@@ -77,7 +78,7 @@ class BaseComputations:
     def get_extension_hook(
         self,
         param_groups,
-        damping,
+        coefficients: _DirectionalCoefficients,
         savefield,
         keep_gram_mat=True,
         keep_gram_evals=True,
@@ -85,7 +86,7 @@ class BaseComputations:
         keep_gammas=True,
         keep_lambdas=True,
         keep_batch_size=True,
-        keep_deltas=True,
+        keep_coefficients: bool = True,
         keep_newton_step=True,
         keep_backpack_buffers=True,
     ):
@@ -93,8 +94,8 @@ class BaseComputations:
 
         Args:
             param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-            damping (vivit.optim.damping.BaseDamping): Instance for computing damping
-                parameters from first- and second-order directional derivatives.
+            coefficients: Instance for computing Newton step coefficients from first-
+                and second-order directional derivatives.
             savefield (str): Name of the attribute created in the parameters.
             keep_gram_mat (bool, optional): Keep buffers for Gram matrix under group id
                 in ``self._gram_computation._gram_mat``. Default: ``True``
@@ -112,8 +113,8 @@ class BaseComputations:
                 Default: ``True``
             keep_batch_size (bool, optional): Keep batch size for under group id
                 in ``self._gram_computation._lambdas``. Default: ``True``
-            keep_deltas (bool, optional): Keep directional dampings under group id in
-                ``self._deltas``. Default: ``True``.
+            keep_coefficients: Keep Newton step coefficients under group id in
+                ``self._coefficients``. Default: ``True``.
             keep_newton_step (bool, optional): Keep damped Newton step under group id
                 in ``self._newton_step``. Default: ``True``.
             keep_backpack_buffers (bool, optional): Keep buffers from used BackPACK
@@ -130,7 +131,7 @@ class BaseComputations:
 
         param_computation = self.get_param_computation()
         group_hook = self.get_group_hook(
-            damping,
+            coefficients,
             savefield,
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
@@ -138,7 +139,7 @@ class BaseComputations:
             keep_gammas=keep_gammas,
             keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
-            keep_deltas=keep_deltas,
+            keep_coefficients=keep_coefficients,
             keep_newton_step=keep_newton_step,
             keep_backpack_buffers=keep_backpack_buffers,
         )
@@ -180,7 +181,7 @@ class BaseComputations:
 
     def get_group_hook(
         self,
-        damping,
+        coefficients: _DirectionalCoefficients,
         savefield,
         keep_gram_mat,
         keep_gram_evals,
@@ -188,15 +189,15 @@ class BaseComputations:
         keep_gammas,
         keep_lambdas,
         keep_batch_size,
-        keep_deltas,
+        keep_coefficients: bool,
         keep_newton_step,
         keep_backpack_buffers,
     ):
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
 
         Args:
-            damping (vivit.optim.damping.BaseDamping): Instance for computing damping
-                parameters from first- and second-order directional derivatives.
+            coefficients: Instance for computing Newton step coefficients from first-
+                and second-order directional derivatives.
             savefield (str): Name of the attribute created in the parameters.
             keep_gram_mat (bool): Keep buffers for Gram matrix under group id in
                 ``self._gram_computation._gram_mat``.
@@ -210,8 +211,8 @@ class BaseComputations:
                 derivatives under group id in ``self._gram_computation._lambdas``.
             keep_batch_size (bool): Keep batch size for under group id
                 in ``self._gram_computation._lambdas``. Default: ``True``
-            keep_deltas (bool): Keep directional dampings under group id in
-                ``self._deltas``.
+            keep_coefficients: Keep Newton step coefficients under group id in
+                ``self._coefficients``.
             keep_newton_step (bool): Keep damped Newton step under group id
                 in ``self._newton_step``.
             keep_backpack_buffers (bool): Keep buffers from used BackPACK
@@ -230,8 +231,9 @@ class BaseComputations:
             keep_lambdas=True,
             keep_batch_size=True,
         )
-        group_hook_deltas = partial(self._group_hook_deltas, damping=damping)
-        group_hook_newton_step = self._group_hook_newton_step
+        group_hook_newton_step = partial(
+            self._group_hook_newton_step, coefficients=coefficients
+        )
         group_hook_load_to_params = partial(
             self._group_hook_load_to_params, savefield=savefield
         )
@@ -243,7 +245,7 @@ class BaseComputations:
             keep_gammas=keep_gammas,
             keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
-            keep_deltas=keep_deltas,
+            keep_coefficients=keep_coefficients,
             keep_newton_step=keep_newton_step,
             keep_backpack_buffers=keep_backpack_buffers,
         )
@@ -258,7 +260,6 @@ class BaseComputations:
                 group (dict): Parameter group of a ``torch.optim.Optimizer``.
             """
             group_hook_gram(self, accumulation, group)
-            group_hook_deltas(accumulation, group)
             group_hook_newton_step(accumulation, group)
             group_hook_load_to_params(accumulation, group)
             group_hook_memory_cleanup(accumulation, group)
@@ -286,7 +287,7 @@ class BaseComputations:
         keep_gammas,
         keep_lambdas,
         keep_batch_size,
-        keep_deltas,
+        keep_coefficients: bool,
         keep_newton_step,
         keep_backpack_buffers,
     ):
@@ -309,8 +310,8 @@ class BaseComputations:
                 derivatives under group id in ``self._gram_computation._lambdas``.
             keep_batch_size (bool): Keep batch size for under group id
                 in ``self._gram_computation._lambdas``. Default: ``True``
-            keep_deltas (bool): Keep directional dampings under group id in
-                ``self._deltas``.
+            keep_coefficients: Keep Newton step coefficients under group id in
+                ``self._coefficients``.
             keep_newton_step (bool): Keep damped Newton step under group id
                 in ``self._newton_step``.
             keep_backpack_buffers (bool): Keep buffers from used BackPACK
@@ -333,21 +334,22 @@ class BaseComputations:
             self._gram_computation._savefield_second,
         }
 
-        for param in group["params"]:
-            for savefield in savefields:
+        if not keep_backpack_buffers:
+            for param in group["params"]:
+                for savefield in savefields:
 
-                if self._verbose:
-                    print(f"Param {id(param)}: Delete '{savefield}'")
+                    if self._verbose:
+                        print(f"Param {id(param)}: Delete '{savefield}'")
 
-                delattr(param, savefield)
+                    delattr(param, savefield)
 
         buffers = []
 
         if not keep_newton_step:
             buffers.append("_newton_step")
 
-        if not keep_deltas:
-            buffers.append("_deltas")
+        if not keep_coefficients:
+            buffers.append("_coefficients")
 
         group_id = id(group)
         for b in buffers:
@@ -357,79 +359,50 @@ class BaseComputations:
 
             getattr(self, b).pop(group_id)
 
-    def _group_hook_deltas(self, accumulation, group, damping):
-        """Evaluate dampings for individual directions.
+    def _group_hook_newton_step(
+        self, accumulation, group, coefficients: _DirectionalCoefficients
+    ):
+        """Evaluate the damped Newton update.
 
         Sets the following entries under the id of ``group``:
 
-        - In ``self._deltas``: Directional dampings.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated information.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-            damping (vivit.optim.damping.BaseDamping): Instance for computing damping
-                parameters from first- and second-order directional derivatives.
-        """
-        group_id = id(group)
-
-        gammas = self._gram_computation._gammas[group_id]
-        lambdas = self._gram_computation._lambdas[group_id]
-
-        deltas = damping(gammas, lambdas)
-
-        self._deltas[group_id] = deltas
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store '_deltas'")
-
-    def _group_hook_newton_step(self, accumulation, group):
-        """Evaluate the damped Newton update ``- ∑ᵢ ( γᵢ / (λᵢ + δᵢ)) eᵢ / ||eᵢ||``.
-
-        Sets the following entries under the id of ``group``:
-
+        - In ``self._coefficients``: Newton step coefficients.
         - In ``self._newton_step``: Damped Newton step.
 
         Args:
             accumulation (dict): Dictionary with accumulated information.
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
+            coefficients: Instance for computing Newton step coefficients.
         """
         group_id = id(group)
 
         gram_evals = self._gram_computation._gram_evals[group_id]
         gram_evecs = self._gram_computation._gram_evecs[group_id]
+        gammas = self._gram_computation._gammas[group_id]
+        lambdas = self._gram_computation._lambdas[group_id]
         N_dir = (
             self._gram_computation._batch_size[group_id]
             if self._gram_computation._subsampling_directions is None
             else len(self._gram_computation._subsampling_directions)
         )
         C_dir = gram_evecs.shape[0] // N_dir
-        gammas = self._gram_computation._gammas[group_id]
-        lambdas = self._gram_computation._lambdas[group_id]
-        deltas = self._deltas[group_id]
         V_mp = self._get_V_mat_prod(group)
 
-        batch_axis = 0
-        gammas_mean = gammas.mean(batch_axis)
+        newton_coefficients = coefficients.compute_coefficients(gammas, lambdas)
+        self._coefficients[group_id] = newton_coefficients
 
-        # TODO Choose lambda: Either from directions, or second derivatives
-        use_lambda_from_directions = False
-        if use_lambda_from_directions:
-            lambdas_mean = gram_evals
-        else:
-            lambdas_mean = lambdas.mean(batch_axis)
-
+        if self._verbose:
+            print(f"Group {id(group)}: Store '_coefficients'")
         """
         Don't expand directions in parameter space. Instead, use
 
-        ``eᵢ / ||eᵢ|| = V ẽᵢ / √λᵢ``
+        ``eₖ = V ẽₖ / √λₖ``
 
-        to perform the summation over ``i`` in the Gram matrix space,
+        to perform the summation over ``k`` in the Gram space,
 
-        ``- ∑ᵢ (γᵢ / (λᵢ + δᵢ)) eᵢ / ||eᵢ|| = V [∑ᵢ (γᵢ / (λᵢ + δᵢ)) ẽᵢ]``.
+        ``∑ₖ cₖ eₖ = V [∑ₖ (cₖ / √λₖ) ẽₖ]``.
         """
-        gram_step = (
-            -gammas_mean / (lambdas_mean + deltas) / gram_evals.sqrt() * gram_evecs
-        ).sum(1)
+        gram_step = (newton_coefficients / gram_evals.sqrt() * gram_evecs).sum(1)
         gram_step = gram_step.reshape(1, C_dir, N_dir)
         newton_step = [V_g.squeeze(0) for V_g in V_mp(gram_step)]
 

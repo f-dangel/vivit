@@ -1,9 +1,39 @@
 """Damping policies from first- and second-order directional derivatives."""
 
+from typing import Dict, Tuple
+
 import torch
+from torch import Tensor
 
 
-class BaseDamping:
+class _DirectionalCoefficients:
+    """Base class defining the interface for computing Newton step coefficients."""
+
+    def compute_coefficients(
+        self, first_derivatives: Tensor, second_derivatives: Tensor
+    ) -> Tensor:
+        """Compute the Newton step coefficients.
+
+        Let ``N₁`` and ``N₂`` denote the number of samples used for computing first-
+        and second-order derivatives respectively. Let ``D`` be the number of
+        directions.
+
+        Args:
+            first_derivatives: 2d tensor of shape ``[N₁,D]`` with the
+                gradient projections ``γ[n, d]`` of sample ``n`` along direction ``d``.
+            second_derivatives: 2d tensor of shape ``[N₂, D]`` with the
+                curvature projections ``λ[n, d]`` of sample ``n`` along direction ``d``.
+
+        Returns: # noqa: DAR202
+            1d tensor of shape ``[D]`` with coefficients ``c[d]`` along direction ``d``.
+
+        Raises:
+            NotImplementedError: Must be implemented by a child class.
+        """
+        raise NotImplementedError
+
+
+class _Damping(_DirectionalCoefficients):
     """Base class for policies to determine the damping parameter.
 
     To create a new damping policy, the following methods need to be implemented by
@@ -13,7 +43,44 @@ class BaseDamping:
 
     """
 
-    def __call__(self, first_derivatives, second_derivatives):
+    def __init__(self, save_history: bool = False):
+        """Initialize damping, enable saving of previously computed values.
+
+        Args:
+            save_history: Whether to store the computed dampings. Default: ``False``.
+                Only use this option if you need access to the damping values (e.g.
+                for logging).
+        """
+        self._save_history = save_history
+        self._history: Dict[Tuple[int, int], Tensor] = {}
+
+    def compute_coefficients(
+        self, first_derivatives: Tensor, second_derivatives: Tensor
+    ) -> Tensor:
+        """Compute Newton step coefficients ``cₖ = - γₖ / (λₖ + δₖ)``.
+
+        Let ``N₁`` and ``N₂`` denote the number of samples used for computing first-
+        and second-order derivatives respectively. Let ``D`` be the number of
+        directions.
+
+        Args:
+            first_derivatives: 2d tensor of shape ``[N₁,D]`` with the
+                gradient projections ``γ[n, d]`` of sample ``n`` along direction ``d``.
+            second_derivatives: 2d tensor of shape ``[N₂, D]`` with the
+                curvature projections ``λ[n, d]`` of sample ``n`` along direction ``d``.
+
+        Returns:
+            1d tensor of shape ``[D]`` with coefficients ``c[d]`` along direction ``d``.
+        """
+        batch_axis = 0
+        gammas_mean = first_derivatives.mean(batch_axis)
+        lambdas_mean = second_derivatives.mean(batch_axis)
+
+        deltas = self.__call__(first_derivatives, second_derivatives)
+
+        return -gammas_mean / (lambdas_mean + deltas)
+
+    def __call__(self, first_derivatives: Tensor, second_derivatives: Tensor) -> Tensor:
         """Determine damping parameter for each direction.
 
         Let ``N₁`` and ``N₂`` denote the number of samples used for computing first-
@@ -21,14 +88,57 @@ class BaseDamping:
         directions.
 
         Args:
-            first_derivatives (torch.Tensor): 2d tensor of shape ``[N₁,D]`` with the
+            first_derivatives: 2d tensor of shape ``[N₁,D]`` with the
                 gradient projections ``γ[n, d]`` of sample ``n`` along direction ``d``.
-            second_derivatives (torch.Tensor): 2d tensor of shape ``[N₂, D]`` with the
+            second_derivatives: 2d tensor of shape ``[N₂, D]`` with the
                 curvature projections ``λ[n, d]`` of sample ``n`` along direction ``d``.
 
+        Returns:
+            1d tensor of shape ``[D]`` with dampings ``δ[d]`` along direction ``d``.
+        """
+        damping = self.compute_damping(first_derivatives, second_derivatives)
+
+        if self._save_history:
+            key = (id(first_derivatives), id(second_derivatives))
+            self._history[key] = damping
+
+        return damping
+
+    def get_from_history(
+        self, first_derivatives: Tensor, second_derivatives: Tensor, pop: bool = False
+    ) -> Tensor:
+        """Load previously computed damping values from history.
+
+        Args:
+            first_derivatives: First input used for damping in ``compute_damping``.
+            second_derivatives: Second input used for damping in ``compute_damping``.
+            pop: Whether to pop the returned value from the internal saved ones.
+                Default: ``False``.
+
+        Returns:
+            Damping value from history.
+        """
+        key = (id(first_derivatives), id(second_derivatives))
+
+        return self._history.pop(key) if pop else self._history[key]
+
+    def compute_damping(
+        self, first_derivatives: Tensor, second_derivatives: Tensor
+    ) -> Tensor:
+        """Compute the damping for each direction.
+
+        Let ``N₁`` and ``N₂`` denote the number of samples used for computing first-
+        and second-order derivatives respectively. Let ``D`` be the number of
+        directions.
+
+        Args:
+            first_derivatives: 2d tensor of shape ``[N₁,D]`` with the gradient
+                projections ``γ[n, d]`` of sample ``n`` along direction ``d``.
+            second_derivatives: 2d tensor of shape ``[N₂, D]`` with the curvature
+                projections ``λ[n, d]`` of sample ``n`` along direction ``d``.
+
         Returns: # noqa: DAR202
-            torch.Tensor: 1d tensor of shape ``[D]`` containing the dampings ``δ[d]``
-                along direction ``d``.
+            1d tensor of shape ``[D]`` with dampings ``δ[d]`` along direction ``d``.
 
         Raises:
             NotImplementedError: Must be implemented by a child class.
@@ -36,45 +146,59 @@ class BaseDamping:
         raise NotImplementedError
 
 
-class ConstantDamping(BaseDamping):
+class ConstantDamping(_Damping):
     """Constant isotropic damping."""
 
-    def __init__(self, damping=1.0):
+    def __init__(self, damping: float = 1.0, save_history: bool = False):
         """Store damping constant.
 
         Args:
-            damping (float, optional): Damping constant. Default value uses ``1.0``.
+            damping: Damping constant. Default value uses ``1.0``.
+            save_history: Whether to store the computed dampings. Default: ``False``.
+                Only use this option if you need access to the damping values (e.g.
+                for logging).
         """
-        super().__init__()
+        super().__init__(save_history=save_history)
 
         self._damping = damping
 
-    def __call__(self, first_derivatives, second_derivatives):
+    def compute_damping(
+        self, first_derivatives: Tensor, second_derivatives: Tensor
+    ) -> Tensor:
         num_directions = first_derivatives.shape[1]
         device = first_derivatives.device
 
         return self._damping * torch.ones(num_directions, device=device)
 
 
-class BootstrapDamping(BaseDamping):
+class BootstrapDamping(_Damping):
     """Adaptive damping, uses Bootstrap to generate gain samples."""
 
     DEFAULT_DAMPING_GRID = torch.logspace(-3, 2, 100)
 
-    def __init__(self, damping_grid=None, num_resamples=100, percentile=95.0):
+    def __init__(
+        self,
+        damping_grid: Tensor = None,
+        num_resamples: int = 100,
+        percentile: float = 95.0,
+        save_history: bool = False,
+    ):
         """Store ``damping_grid``, ``num_resamples`` and ``percentile``.
 
         Args:
-            damping_grid (torch.Tensor): The Bootstrap generates gain samples
-                for all damping values in ``damping_grid``. Default is a log-
-                equidistant grid between ``1e-3`` and ``1e2``.
-            num_resamples (int): This is the number of gain samples that are
-                generated using the Bootstrap. The default value is ``100``.
-            percentile (float): The policy for delta finds a curve (among the
-                Bootstrap gain samples), such that ``percentile`` percent of the
-                gain samples lie above it. The default value is ``95.0``.
+            damping_grid: The Bootstrap generates gain samples for all damping values
+                in ``damping_grid``. Default is a log-equidistant grid between
+                ``1e-3`` and ``1e2``.
+            num_resamples: Number of gain samples that are generated using the
+                Bootstrap. The default value is ``100``.
+            percentile: Policy for delta finds a curve (among the Bootstrap gain
+                samples), such that ``percentile`` percent of the gain samples lie
+                above it. The default value is ``95.0``.
+            save_history: Whether to store the computed dampings. Default: ``False``.
+                Only use this option if you need access to the damping values (e.g.
+                for logging).
         """
-        super().__init__()
+        super().__init__(save_history=save_history)
 
         self._damping_grid = (
             damping_grid if damping_grid is not None else self.DEFAULT_DAMPING_GRID
@@ -123,25 +247,24 @@ class BootstrapDamping(BaseDamping):
         else:
             return float("inf")
 
-    def __call__(self, first_derivatives, second_derivatives):
-        """
-        Determine damping parameter for each direction.
+    def compute_damping(
+        self, first_derivatives: Tensor, second_derivatives: Tensor
+    ) -> Tensor:
+        """Determine damping parameter for each direction.
 
         Let ``N₁`` and ``N₂`` denote the number of samples used for computing first-
         and second-order derivatives respectively. Let ``D`` be the number of
         directions.
 
         Args:
-            first_derivatives (torch.Tensor): 2d tensor of shape ``[N₁,D]`` with the
+            first_derivatives: 2d tensor of shape ``[N₁,D]`` with the
                 gradient projections ``γ[n, d]`` of sample ``n`` along direction ``d``.
-            second_derivatives (torch.Tensor): 2d tensor of shape ``[N₂, D]`` with the
+            second_derivatives: 2d tensor of shape ``[N₂, D]`` with the
                 curvature projections ``λ[n, d]`` of sample ``n`` along direction ``d``.
 
         Returns:
-            torch.Tensor: 1d tensor of shape ``[D]`` containing the dampings ``δ[d]``
-                along direction ``d``.
+            1d tensor of shape ``[D]`` with dampings ``δ[d]`` along direction ``d``.
         """
-
         D = first_derivatives.shape[1]
         num_dampings = len(self._damping_grid)
         device = first_derivatives.device
@@ -181,9 +304,11 @@ class BootstrapDamping(BaseDamping):
         return dampings
 
 
-class BootstrapDamping2(BaseDamping):
-    """Adaptive damping, uses Bootstrap to generate gain samples. This version differs
-    from ``BootstrapDamping`` with regard to two aspects:
+class BootstrapDamping2(_Damping):
+    """Adaptive damping, uses Bootstrap to generate gain samples.
+
+    This version differs from ``BootstrapDamping`` with regard to two aspects:
+
     - First, we don't resample the Newton step ``tau_hat_re``, i.e. we assume this step
       to be fixed and we only evaluate the corresponding gain for thsi step in different
       (resampled) metrics.
@@ -195,20 +320,29 @@ class BootstrapDamping2(BaseDamping):
 
     DEFAULT_DAMPING_GRID = torch.logspace(-3, 2, 100)
 
-    def __init__(self, damping_grid=None, num_resamples=100, percentile=95.0):
+    def __init__(
+        self,
+        damping_grid: Tensor = None,
+        num_resamples: int = 100,
+        percentile: float = 95.0,
+        save_history: bool = False,
+    ):
         """Store ``damping_grid``, ``num_resamples`` and ``percentile``.
 
         Args:
-            damping_grid (torch.Tensor): The Bootstrap generates gain samples
+            damping_grid: The Bootstrap generates gain samples
                 for all damping values in ``damping_grid``. Default is a log-
                 equidistant grid between ``1e-3`` and ``1e2``.
-            num_resamples (int): This is the number of gain samples that are
+            num_resamples: This is the number of gain samples that are
                 generated using the Bootstrap. The default value is ``100``.
-            percentile (float): The policy for delta finds a curve (among the
+            percentile: The policy for delta finds a curve (among the
                 Bootstrap gain samples), such that ``percentile`` percent of the
                 gain samples lie above it. The default value is ``95.0``.
+            save_history: Whether to store the computed dampings. Default: ``False``.
+                Only use this option if you need access to the damping values (e.g.
+                for logging).
         """
-        super().__init__()
+        super().__init__(save_history=save_history)
 
         self._damping_grid = (
             damping_grid if damping_grid is not None else self.DEFAULT_DAMPING_GRID
@@ -226,7 +360,6 @@ class BootstrapDamping2(BaseDamping):
             torch.Tensor: A 1d ``torch.Tensor`` whose size is the same as ``sample``
                 and whose entries are sampled with replacement from ``sample``.
         """
-
         N = len(sample)
         return sample[torch.randint(low=0, high=N, size=(N,))]
 
@@ -242,7 +375,6 @@ class BootstrapDamping2(BaseDamping):
             float or float("inf"): The "optimal" damping. In case no reasonable
                 damping is found, it will return ``float("inf")``.
         """
-
         # Compute gain percentile
         q = 1 - self._percentile / 100.0
         gain_perc = torch.quantile(gains, q, dim=0)
@@ -261,25 +393,24 @@ class BootstrapDamping2(BaseDamping):
         else:
             return float("inf")
 
-    def __call__(self, first_derivatives, second_derivatives):
-        """
-        Determine damping parameter for each direction.
+    def compute_damping(
+        self, first_derivatives: Tensor, second_derivatives: Tensor
+    ) -> Tensor:
+        """Determine damping parameter for each direction.
 
         Let ``N₁`` and ``N₂`` denote the number of samples used for computing first-
         and second-order derivatives respectively. Let ``D`` be the number of
         directions.
 
         Args:
-            first_derivatives (torch.Tensor): 2d tensor of shape ``[N₁,D]`` with the
+            first_derivatives: 2d tensor of shape ``[N₁,D]`` with the
                 gradient projections ``γ[n, d]`` of sample ``n`` along direction ``d``.
-            second_derivatives (torch.Tensor): 2d tensor of shape ``[N₂, D]`` with the
+            second_derivatives: 2d tensor of shape ``[N₂, D]`` with the
                 curvature projections ``λ[n, d]`` of sample ``n`` along direction ``d``.
 
         Returns:
-            torch.Tensor: 1d tensor of shape ``[D]`` containing the dampings ``δ[d]``
-                along direction ``d``.
+            1d tensor of shape ``[D]`` with dampings ``δ[d]`` along direction ``d``.
         """
-
         D = first_derivatives.shape[1]
         num_dampings = len(self._damping_grid)
         device = first_derivatives.device

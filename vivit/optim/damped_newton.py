@@ -1,9 +1,11 @@
 """PyTorch optimizer with damped Newton updates."""
 
-import torch
+from torch.optim import Optimizer
+
+from vivit.optim.damping import _DirectionalCoefficients
 
 
-class DampedNewton(torch.optim.Optimizer):
+class DampedNewton(Optimizer):
     """
     Newton optimizer damped via bootstrapped 1st- and 2nd-order directional derivatives.
 
@@ -14,14 +16,19 @@ class DampedNewton(torch.optim.Optimizer):
 
     SAVEFIELD = "damped_newton_step"
 
-    def __init__(self, parameters, damping, computations, criterion):
+    def __init__(
+        self,
+        parameters,
+        coefficients: _DirectionalCoefficients,
+        computations,
+        criterion,
+    ):
         """Initialize the optimizer, specifying the damping damping and sample split.
 
         Args:
             parameters ([torch.nn.Parameters]): List of parameters to be trained.
-            damping (vivit.optim.damping.BaseDamping): Policy for selecting
-                dampings along a direction from first- and second- order directional
-                derivatives.
+            coefficients: Policy for computing Newton step coefficients from first-
+                and second- order directional derivatives.
             computations (vivit.optim.computations.BaseComputations): Assignment of
                 mini-batch samples to the different computational tasks (finding
                 directions, computing first- and second-order derivatives along them).
@@ -31,7 +38,7 @@ class DampedNewton(torch.optim.Optimizer):
         defaults = {"criterion": criterion}
         super().__init__(parameters, defaults=defaults)
 
-        self._damping = damping
+        self._coefficients = coefficients
         self._computations = computations
 
     def get_extensions(self):
@@ -53,7 +60,7 @@ class DampedNewton(torch.optim.Optimizer):
         keep_gammas=False,
         keep_lambdas=False,
         keep_batch_size=False,
-        keep_deltas=False,
+        keep_coefficients: bool = False,
         keep_newton_step=False,
         keep_backpack_buffers=False,
     ):
@@ -77,10 +84,10 @@ class DampedNewton(torch.optim.Optimizer):
                 ``self._computations._gram_computation._lambdas``. Default: ``False``
             keep_batch_size (bool, optional): Keep batch size for under group id
                 in ``self._computations._gram_computation._lambdas``. Default: ``False``
-            keep_deltas (bool, optional): Keep directional dampings under group id in
-                ``self._deltas``. Default: ``False``.
+            keep_coefficients: Keep Newton step coefficients under group id in
+                ``self._computations._coefficients``. Default: ``False``.
             keep_newton_step (bool, optional): Keep damped Newton step under group id
-                in ``self._newton_step``. Default: ``False``.
+                in ``self._computations._newton_step``. Default: ``False``.
             keep_backpack_buffers (bool, optional): Keep buffers from used BackPACK
                 extensions during backpropagation. Default: ``False``.
 
@@ -91,7 +98,7 @@ class DampedNewton(torch.optim.Optimizer):
         """
         return self._computations.get_extension_hook(
             self.param_groups,
-            self._damping,
+            self._coefficients,
             self.SAVEFIELD,
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
@@ -99,7 +106,7 @@ class DampedNewton(torch.optim.Optimizer):
             keep_gammas=keep_gammas,
             keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
-            keep_deltas=keep_deltas,
+            keep_coefficients=keep_coefficients,
             keep_newton_step=keep_newton_step,
             keep_backpack_buffers=keep_backpack_buffers,
         )

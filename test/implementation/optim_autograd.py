@@ -57,7 +57,7 @@ class AutogradOptimExtensions(AutogradExtensions):
 
         Args:
             param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
-            damping (vivit.optim.damping.BaseDamping): Policy for selecting
+            damping (vivit.optim.damping._Damping): Policy for selecting
                 dampings along a direction from first- and second- order directional
                 derivatives.
             subsampling_directions ([int] or None): Indices of samples used to compute

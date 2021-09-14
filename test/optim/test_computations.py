@@ -57,7 +57,7 @@ def test_computations_newton_step(
     Args:
         top_k (function): Criterion to select Gram space directions.
         problem (ExtensionsTestProblem): Test case.
-        damping (vivit.optim.damping.BaseDamping): Policy for selecting dampings along
+        damping (vivit.optim.damping._Damping): Policy for selecting dampings along
             a direction from first- and second- order directional derivatives.
         subsampling_directions ([int] or None): Indices of samples used to compute
             Newton directions. If ``None``, all samples in the batch will be used.
