@@ -70,8 +70,7 @@ def symeig_psd(input, eigenvectors=False, upper=True, shift=0.0, shift_inplace=F
     try:
         evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
     except RuntimeError as e:
-        e_msg = getattr(e, "message", repr(e))
-        raise RuntimeError(f"{e_msg} Tensor contains NaNs: {_has_nans(input)}")
+        raise RuntimeError(f"Tensor contains NaNs: {_has_nans(input)}") from e
 
     # shift back
     if shift_inplace:
@@ -137,8 +136,7 @@ def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
     try:
         evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
     except RuntimeError as e:
-        e_msg = getattr(e, "message", repr(e))
-        raise RuntimeError(f"{e_msg} Tensor contains NaNs: {_has_nans(input)}")
+        raise RuntimeError(f"Tensor contains NaNs: {_has_nans(input)}") from e
 
     return remove_zero_evals(evals, evecs, atol=atol, rtol=rtol)
 
