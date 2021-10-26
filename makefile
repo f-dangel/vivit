@@ -13,6 +13,8 @@ help:
 	@echo "        Run pytest on test and report coverage"
 	@echo "test-light"
 	@echo "        Run pytest on the light part of test and report coverage"
+	@echo "install-examples"
+	@echo "        Install only the dependencies to run examples"
 	@echo "examples"
 	@echo "        Run the examples"
 	@echo "install-lint"
@@ -69,6 +71,11 @@ test-light:
 
 examples:
 	@cd exp/examples && bash run_examples.sh
+
+.PHONY: install-examples
+
+install-examples:
+	@cd exp && pip install -r requirements-exp.txt
 
 .PHONY: install-lint
 
