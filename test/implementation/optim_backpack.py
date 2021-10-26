@@ -1,11 +1,15 @@
 """BackPACK implementation of operations used in ``vivit.optim``."""
 
 from test.implementation.backpack import BackpackExtensions
+from typing import Any, Dict, List, Optional
 
 from backpack import backpack
+from torch import Tensor
 
 from vivit.optim import GramComputations
 from vivit.optim.computations import BaseComputations
+from vivit.optim.damped_newton import DampedNewton
+from vivit.optim.damping import _DirectionalCoefficients
 
 
 class BackpackOptimExtensions(BackpackExtensions):
@@ -133,6 +137,85 @@ class BackpackOptimExtensions(BackpackExtensions):
             ),
         ):
             loss.backward()
+
+        newton_step = [
+            [getattr(param, savefield) for param in group["params"]]
+            for group in param_groups
+        ]
+
+        return newton_step
+
+    def optim_newton_step(
+        self,
+        param_groups: List[Dict[str, Any]],
+        damping: _DirectionalCoefficients,
+        subsampling_directions: Optional[List[int]] = None,
+        subsampling_first: Optional[List[int]] = None,
+        subsampling_second: Optional[List[int]] = None,
+        use_closure: bool = False,
+    ):
+        """Directionally-damped Newton step along the top-k GGN eigenvectors.
+
+        Uses the ``DampedNewton`` optimizer to compute Newton steps.
+
+        Args:
+            param_groups: Parameter groups like for ``torch.nn.Optimizer``s.
+            damping: Computes Newton coefficients from first- and second- order
+                directional derivatives.
+            subsampling_directions: Indices of samples used to compute
+                Newton directions. If ``None``, all samples in the batch will be used.
+            subsampling_first: Sample indices used for individual gradients.
+            subsampling_second: Sample indices used for individual curvature matrices.
+            use_closure: Whether to use a closure in the optimizer. Default: ``False``.
+        """
+        computations = BaseComputations(
+            subsampling_directions=subsampling_directions,
+            subsampling_first=subsampling_first,
+            subsampling_second=subsampling_second,
+        )
+
+        opt = DampedNewton(
+            param_groups,
+            coefficients=damping,
+            computations=computations,
+            criterion=None,
+        )
+
+        savefield = "test_newton_step"
+        DampedNewton.SAVEFIELD = savefield
+
+        if use_closure:
+
+            def closure() -> Tensor:
+                """Evaluate the loss on a fixed mini-batch.
+
+                Returns:
+                    Mini-batch loss.
+                """
+                _, _, loss = self.problem.forward_pass()
+                return loss
+
+            opt.step(closure=closure)
+
+        else:
+            _, _, loss = self.problem.forward_pass()
+
+            with backpack(
+                *opt.get_extensions(),
+                extension_hook=opt.get_extension_hook(
+                    keep_gram_mat=False,
+                    keep_gram_evals=False,
+                    keep_gram_evecs=False,
+                    keep_gammas=False,
+                    keep_lambdas=False,
+                    keep_batch_size=False,
+                    keep_coefficients=False,
+                    keep_newton_step=False,
+                    keep_backpack_buffers=False,
+                ),
+            ):
+                loss.backward()
+                opt.step()
 
         newton_step = [
             [getattr(param, savefield) for param in group["params"]]
