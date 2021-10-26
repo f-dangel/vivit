@@ -1,4 +1,4 @@
 # Dependencies for vivit
 
 # Install in editable mode from a GitHub repository's branch
-git+git://github.com/f-dangel/backpack.git@0dc29fec4dedfa7b4631027cd834aa878cfb4487#egg=backpack-for-pytorch
+git+git://github.com/f-dangel/backpack.git@2ad5c3ba80b787c584eb7b17707b9f86968054e9#egg=backpack-for-pytorch

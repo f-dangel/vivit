@@ -5,9 +5,8 @@ import warnings
 from functools import partial
 
 import torch
-from backpack.extensions import BatchGrad
+from backpack.extensions import BatchGrad, SqrtGGNExact
 
-from vivit.extensions import SqrtGGNExact
 from vivit.utils.eig import stable_symeig
 from vivit.utils.gram import partial_contract, reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook

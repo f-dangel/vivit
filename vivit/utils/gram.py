@@ -34,25 +34,6 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
     return result
 
 
-def pairwise2_dot(tensor, other, start_dim=1):
-    """Compute pairwise scalar products between two tensors.
-
-    Args:
-        tensor (torch.Tensor): A tensor whose vector slices are paired with
-            slices of ``other``.
-        other (torch.Tensor): A tensor whose vector slices are paired with
-            slices of ``tensor``.
-        start_dim (int): Start dimension of contraction for scalar product.
-
-    Returns:
-        torch.Tensor: A tensor of shape ``[*(tensorᵢ), *(otherⱼ)]`` where `i, j``
-            range from ``0`` to ``start_dim - 1``. ``tensorᵢ`` is the ``i``th
-            dimension of ``tensor``, and ``otherⱼ`` is the ``j`` dimension of
-            ``other``.
-    """
-    return partial_contract(tensor, other, (start_dim, start_dim))
-
-
 def get_letters(num_letters):
     """Return a list of ``num_letters`` unique letters.
 

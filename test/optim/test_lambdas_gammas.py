@@ -255,48 +255,6 @@ def autograd_hessian(loss, params):
     return torch.stack(list(autograd_hessian_columns(loss, params, concat=True)))
 
 
-# # ====================================================================================
-# # Auxiliary Functions (4)
-# # Check if results are within given tolerances. This is basically a copy from
-# # test.utils
-# # ====================================================================================
-#
-# atol = 1e-8
-# rtol = 1e-5
-#
-#
-# def report_nonclose_values(x, y, atol=atol, rtol=rtol):
-#     x_numpy = x.data.cpu().numpy().flatten()
-#     y_numpy = y.data.cpu().numpy().flatten()
-#
-#     close = np.isclose(x_numpy, y_numpy, atol=atol, rtol=rtol)
-#     where_not_close = np.argwhere(np.logical_not(close))
-#     for idx in where_not_close:
-#         x, y = x_numpy[idx], y_numpy[idx]
-#         print("{} versus {}. Ratio of {}".format(x, y, y / x))
-#
-#
-# def check_sizes_and_values(*plists, atol=atol, rtol=rtol):
-#     check_sizes(*plists)
-#     list1, list2 = plists
-#     check_values(list1, list2, atol=atol, rtol=rtol)
-#
-#
-# def check_sizes(*plists):
-#     for i in range(len(plists) - 1):
-#         assert len(plists[i]) == len(plists[i + 1])
-#
-#     for params in zip(*plists):
-#         for i in range(len(params) - 1):
-#             assert params[i].size() == params[i + 1].size()
-#
-#
-# def check_values(list1, list2, atol=atol, rtol=rtol):
-#     for i, (g1, g2) in enumerate(zip(list1, list2)):
-#         report_nonclose_values(g1, g2, atol=atol, rtol=rtol)
-#         assert torch.allclose(g1, g2, atol=atol, rtol=rtol)
-
-
 # ======================================================================================
 # Define Test Parameters
 # ======================================================================================

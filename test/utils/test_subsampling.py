@@ -1,8 +1,7 @@
 """Test subsampling utilities."""
 import pytest
-from backpack.extensions import BatchGrad
+from backpack.extensions import BatchGrad, SqrtGGNExact
 
-from vivit.extensions import SqrtGGNExact
 from vivit.utils.subsampling import (
     merge_extensions,
     merge_multiple_subsamplings,

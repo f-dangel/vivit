@@ -3,7 +3,8 @@
 import math
 from functools import partial
 
-from vivit.extensions import SqrtGGNExact
+from backpack.extensions import SqrtGGNExact
+
 from vivit.optim.damping import _DirectionalCoefficients
 from vivit.optim.gram_computations import GramComputations
 from vivit.utils.ggn import V_mat_prod

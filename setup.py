@@ -12,5 +12,5 @@ setup(
     license="MIT",
     packages=find_packages(),
     zip_safe=False,
-    python_requires=">=3.6",
+    python_requires=">=3.7",
 )
