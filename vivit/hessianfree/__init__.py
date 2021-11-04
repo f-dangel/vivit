@@ -148,7 +148,7 @@ class _LinearOperator(LinearOperator):
 
             for grad_param, current in zip(total_grad, grad(loss, self._params)):
                 grad_param.add_(current, alpha=normalization_factor)
-            total_loss += loss.detach()
+            total_loss.add_(loss.detach(), alpha=normalization_factor)
 
         return total_grad, total_loss
 
