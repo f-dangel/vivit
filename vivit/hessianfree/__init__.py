@@ -5,10 +5,13 @@ from typing import Iterable, List, Tuple
 from backpack.hessianfree.ggnvp import ggn_vector_product_from_plist
 from backpack.hessianfree.hvp import hessian_vector_product
 from backpack.utils.convert_parameters import vector_to_parameter_list
-from numpy import float32, ndarray
+from numpy import allclose, float32, ndarray
+from numpy.random import rand
 from numpy.typing import DTypeLike
 from scipy.sparse.linalg import LinearOperator
-from torch import Tensor, device, from_numpy, tensor, zeros_like
+from torch import Tensor
+from torch import device as torch_device
+from torch import from_numpy, tensor, zeros_like
 from torch.autograd import grad
 from torch.nn import Module
 from torch.nn.utils import parameters_to_vector
@@ -26,9 +29,10 @@ class _LinearOperator(LinearOperator):
         model: Module,
         loss_func: Module,
         data: Iterable[Tuple[Tensor, Tensor]],
-        device: device,
+        device: torch_device,
         dtype: DTypeLike = float32,
         progressbar: bool = False,
+        check_deterministic: bool = True,
     ):
         """Linear operator for DNN curvature matrices.
 
@@ -41,18 +45,98 @@ class _LinearOperator(LinearOperator):
             dtype: Matrix data type (for SciPy operations).
             progressbar: Show a progressbar during matrix-multiplication.
                 Default: ``False``.
+            check_deterministic: Probe that model and data are deterministic, i.e.
+                that the data does not use `drop_last` or data augmentation. Also, the
+                model's forward pass could depend on the order in which mini-batches
+                are presented (BatchNorm, Dropout). Default: ``True``. This is a
+                safeguard, only turn it off if you know what you are doing.
+
+        Raises:
+            Exception: If the check for deterministic behavior fails.
         """
         self._params = [p for p in model.parameters() if p.requires_grad]
         dim = sum(p.numel() for p in self._params)
         super().__init__(shape=(dim, dim), dtype=dtype)
 
-        self._model = model.to(device)
-        self._loss_func = loss_func.to(device)
+        self._model = model
+        self._loss_func = loss_func
         self._data = data
         self._device = device
         self._progressbar = progressbar
 
+        self.to_device(self._device)
+
         self._N_data = sum(X.shape[0] for (X, _) in self._loop_over_data())
+
+        if check_deterministic:
+            old_device = self._device
+            self.to_device(torch_device("cpu"))
+            try:
+                self._check_deterministic()
+            except Exception as e:
+                raise e
+            finally:
+                self.to_device(old_device)
+
+    def to_device(self, device: torch_device):
+        """Load linear operator to a device (inplace).
+
+        Args:
+            device: Target device.
+        """
+        self._device = device
+        self._model = self._model.to(self._device)
+        self._loss_func = self._loss_func.to(self._device)
+
+    def _check_deterministic(self):
+        """Check that the Linear operator is deterministic.
+
+        Non-deterministic behavior is detected if:
+
+        - Two independent applications of matvec onto the same vector yield different
+          results
+        - Two independent loss/gradient computations yield different results
+
+        Note:
+            Deterministic checks are performed on CPU. We noticed that even when it
+            passes on CPU, it can fail on GPU; probably due to non-deterministic
+            operations.
+
+        Raises:
+            RuntimeError: If non-deterministic behavior is detected.
+        """
+        print("Performing deterministic checks")
+
+        grad1, loss1 = self.gradient_and_loss()
+        grad1, loss1 = parameters_to_vector(grad1).cpu().numpy(), loss1.cpu().numpy()
+
+        grad2, loss2 = self.gradient_and_loss()
+        grad2, loss2 = parameters_to_vector(grad2).cpu().numpy(), loss2.cpu().numpy()
+
+        rtol, atol = 1e-5, 1e-7
+        if not allclose(loss1, loss2, rtol=rtol, atol=atol):
+            self.print_nonclose(loss1, loss2, rtol, atol)
+            raise RuntimeError("Check for deterministic loss failed.")
+
+        if not allclose(grad1, grad2, rtol=rtol, atol=atol):
+            self.print_nonclose(grad1, grad2, rtol, atol)
+            raise RuntimeError("Check for deterministic gradient failed.")
+
+        v = rand(self.shape[0])
+        mat_v1 = self @ v
+        mat_v2 = self @ v
+
+        if not allclose(mat_v1, mat_v2, rtol=rtol, atol=atol):
+            self.print_nonclose(mat_v1, mat_v2, rtol, atol)
+            raise RuntimeError("Check for deterministic matvec failed.")
+
+        print("Deterministic checks passed")
+
+    @staticmethod
+    def print_nonclose(array1: ndarray, array2: ndarray, rtol: float, atol: float):
+        nonclose = not allclose(array1, array2, rtol=rtol, atol=atol)
+        for a1, a2 in zip(array1[nonclose].flatten(), array2[nonclose].flatten()):
+            print(f"{a1:.5e} ≠ {a2:.5e}, ratio: {a1 / a2:.5e}")
 
     def _matvec(self, x: ndarray) -> ndarray:
         """Loop over all batches in the data and apply the matrix to vector x.
