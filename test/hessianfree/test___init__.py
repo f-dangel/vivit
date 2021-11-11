@@ -6,10 +6,12 @@ from backpack.hessianfree.ggnvp import ggn_vector_product_from_plist
 from backpack.hessianfree.hvp import hessian_vector_product
 from backpack.utils.convert_parameters import vector_to_parameter_list
 from numpy import allclose
-from pytest import mark
-from torch import cat, device, from_numpy, manual_seed, rand
-from torch.nn import CrossEntropyLoss, Linear, ReLU, Sequential
+from pytest import mark, raises
+from torch import cat, device, from_numpy, manual_seed, rand, rand_like
+from torch.nn import CrossEntropyLoss, Dropout, Linear, ReLU, Sequential
+from torch.nn.modules.batchnorm import BatchNorm1d
 from torch.nn.utils.convert_parameters import parameters_to_vector
+from torch.utils.data import DataLoader, TensorDataset
 
 from vivit.hessianfree import GGNLinearOperator, HessianLinearOperator
 
@@ -87,3 +89,57 @@ def test_HessianLinearOperator_and_GGNLinearOperator(reduction: str, dev: device
     )
 
     assert allclose(G1v, G3v)
+
+
+@mark.parametrize("dev", DEVICES, ids=DEVICES_IDS)
+def test_check_deterministic(dev: device):
+    """Test that non-deterministic behavior is recognized.
+
+    Args:
+        dev: Device where computations are carried out.
+    """
+    manual_seed(0)
+
+    N, D_in, H, C = 3, 10, 5, 2
+    num_batches = 4
+    num_samples = N * num_batches
+
+    X = rand(num_samples, D_in, device=dev)
+    y = classification_targets((num_samples,), C).to(dev)
+    dataset = TensorDataset(X, y)
+
+    loss_func = CrossEntropyLoss().to(dev)
+
+    # Dropout → non-deterministic model
+    deterministic_data = DataLoader(
+        dataset, batch_size=N, shuffle=False, drop_last=False
+    )
+    model = Sequential(Linear(D_in, H), Dropout(), ReLU(), Linear(H, C)).to(dev)
+    with raises(RuntimeError):
+        HessianLinearOperator(
+            model, loss_func, deterministic_data, dev, check_deterministic=True
+        )
+
+    # BatchNorm → non-deterministic model if data is presented in different order
+    shuffled_data = DataLoader(dataset, batch_size=N, shuffle=True, drop_last=False)
+    model = Sequential(Linear(D_in, H), BatchNorm1d(H), ReLU(), Linear(H, C)).to(dev)
+    # by default, BN weight=1, bias=0
+    bn = model[1]
+    bn.weight.data = rand_like(bn.weight.data)
+    bn.bias.data = rand_like(bn.bias.data)
+    with raises(RuntimeError):
+        HessianLinearOperator(
+            model, loss_func, shuffled_data, dev, check_deterministic=True
+        )
+
+    # deterministic model, but non-deterministic data (drop last)
+    N_nondivisible = 5
+    assert num_samples % N_nondivisible != 0, "No samples will be dropped"
+    nondeterministic_data = DataLoader(
+        dataset, batch_size=N_nondivisible, shuffle=True, drop_last=True
+    )
+    model = Sequential(Linear(D_in, H), ReLU(), Linear(H, C)).to(dev)
+    with raises(RuntimeError):
+        HessianLinearOperator(
+            model, loss_func, nondeterministic_data, dev, check_deterministic=True
+        )
