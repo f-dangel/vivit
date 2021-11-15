@@ -5,7 +5,7 @@ from typing import Iterable, List, Tuple
 from backpack.hessianfree.ggnvp import ggn_vector_product_from_plist
 from backpack.hessianfree.hvp import hessian_vector_product
 from backpack.utils.convert_parameters import vector_to_parameter_list
-from numpy import allclose, float32, ndarray
+from numpy import allclose, argwhere, float32, isclose, logical_not, ndarray
 from numpy.random import rand
 from numpy.typing import DTypeLike
 from scipy.sparse.linalg import LinearOperator
@@ -134,9 +134,22 @@ class _LinearOperator(LinearOperator):
 
     @staticmethod
     def print_nonclose(array1: ndarray, array2: ndarray, rtol: float, atol: float):
-        nonclose = not allclose(array1, array2, rtol=rtol, atol=atol)
-        for a1, a2 in zip(array1[nonclose].flatten(), array2[nonclose].flatten()):
-            print(f"{a1:.5e} ≠ {a2:.5e}, ratio: {a1 / a2:.5e}")
+        """Check if the two arrays are element-wise equal within a tolerance and print
+        the entries that differ.
+        Args:
+            array1: First array for comparison.
+            array2: Second array for comparison.
+            rtol: Relative tolerance
+            atol: Absolute tolerance
+        """
+        if not allclose(array1, array2, rtol=rtol, atol=atol):
+            nonclose_idx = logical_not(isclose(array1, array2, rtol=rtol, atol=atol))
+            for idx, a1, a2 in zip(
+                argwhere(nonclose_idx),
+                array1[nonclose_idx].flatten(),
+                array2[nonclose_idx].flatten(),
+            ):
+                print(f"at index {idx}: {a1:.5e} ≠ {a2:.5e}, ratio: {a1 / a2:.5e}")
 
     def _matvec(self, x: ndarray) -> ndarray:
         """Loop over all batches in the data and apply the matrix to vector x.
