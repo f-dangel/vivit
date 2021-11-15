@@ -113,7 +113,7 @@ class _LinearOperator(LinearOperator):
         grad2, loss2 = self.gradient_and_loss()
         grad2, loss2 = parameters_to_vector(grad2).cpu().numpy(), loss2.cpu().numpy()
 
-        rtol, atol = 1e-5, 1e-7
+        rtol, atol = 5e-5, 1e-6
         if not allclose(loss1, loss2, rtol=rtol, atol=atol):
             self.print_nonclose(loss1, loss2, rtol, atol)
             raise RuntimeError("Check for deterministic loss failed.")
