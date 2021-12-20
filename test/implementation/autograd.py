@@ -1,8 +1,11 @@
 from test.implementation.base import ExtensionsImplementation, parameter_groups_to_idx
+from typing import List, Tuple
 
 import torch
 from backpack.hessianfree.ggnvp import ggn_vector_product, ggn_vector_product_from_plist
 from backpack.utils.convert_parameters import vector_to_parameter_list
+from torch import Tensor, zeros_like
+from torch.nn import Parameter
 from torch.nn.utils.convert_parameters import parameters_to_vector
 
 
@@ -59,7 +62,7 @@ class AutogradExtensions(ExtensionsImplementation):
 
         diag_ggns = []
         for p in list(self.problem.model.parameters()):
-            diag_ggn_p = torch.zeros_like(p).view(-1)
+            diag_ggn_p = zeros_like(p).view(-1)
 
             for parameter_index in range(p.numel()):
                 diag_value = extract_ith_element_of_diag_ggn(parameter_index, p)
@@ -215,7 +218,9 @@ class AutogradExtensions(ExtensionsImplementation):
 
         return group_lambdas
 
-    def directions_ggn(self, param_groups, subsampling=None):
+    def directions_ggn(
+        self, param_groups, subsampling=None
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """Compute the leading GGN eigenvalues and eigenvectors.
 
         Args:
@@ -223,9 +228,8 @@ class AutogradExtensions(ExtensionsImplementation):
             ggn_subsampling ([int], optional): Sample indices used for the GGN.
 
         Returns:
-            (torch.Tensor, torch.Tensor): First tensor are the leading GGN eigenvalues,
-                sorted in ascending order. Second tensor are the associated
-                eigenvectors as a column-stacked matrix.
+            First list items are the leading GGN eigenvalues, sorted in ascending order.
+            Second tensor are the associated eigenvectors as a column-stacked matrix.
         """
         N, _ = self._mean_reduction()
         ggn = self.ggn(subsampling=subsampling)
@@ -256,3 +260,53 @@ class AutogradExtensions(ExtensionsImplementation):
             group_evecs.append(evecs[:, keep])
 
         return group_evals, group_evecs
+
+    def ggn_mat_prod(
+        self, mat: List[Tensor], subsampling: List[int] = None
+    ) -> List[Tensor]:
+        """Multiply each vector in ``mat`` by the GGN.
+
+        Args:
+            mat: Stacked vectors in parameter format.
+            subsampling: Indices of samples to use for the computation.
+                Default: ``None``.
+
+        Returns:
+            Stacked results of GGN-vector products in parameter format.
+        """
+        return self.ggn_mat_prod_from_param_list(
+            mat, list(self.problem.model.parameters()), subsampling=subsampling
+        )
+
+    def ggn_mat_prod_from_param_list(
+        self,
+        mat: List[Tensor],
+        param_list: List[Parameter],
+        subsampling: List[int] = None,
+    ) -> List[Tensor]:
+        """Multiply each vector in ``mat`` by the GGN w.r.t. the specified parameters.
+
+        Args:
+            mat: Stacked vectors in parameter format.
+            param_list: List of parameters defining the GGN.
+            subsampling: Indices of samples to use for the computation.
+                Default: ``None``.
+
+        Returns:
+            Stacked results of GGN-vector products in parameter format.
+        """
+
+        G_mat = [zeros_like(m) for m in mat]
+        num_vecs = G_mat[0].shape[0]
+
+        _, output, loss = self.problem.forward_pass(sample_idx=subsampling)
+
+        for vec_idx in range(num_vecs):
+            vec = [m[vec_idx] for m in mat]
+
+            for param_idx, G_v in enumerate(
+                ggn_vector_product_from_plist(loss, output, param_list, vec)
+            ):
+                G_mat[param_idx][vec_idx] = G_v
+
+        return G_mat

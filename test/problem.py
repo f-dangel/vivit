@@ -1,5 +1,6 @@
 import copy
 from test.utils import get_available_devices
+from typing import List, Union
 
 import torch
 from backpack import extend
@@ -104,14 +105,18 @@ class ExtensionsTestProblem:
             ).replace(" ", "")
         )
 
-    def forward_pass(self, sample_idx=None):
+    def forward_pass(self, sample_idx: Union[List[int], int] = None):
         """Do a forward pass. Return input, output, and parameters."""
         if sample_idx is None:
             input = self.input.clone().detach()
             target = self.target.clone().detach()
         else:
-            input = self.input.clone()[sample_idx, :].unsqueeze(0).detach()
-            target = self.target.clone()[sample_idx].unsqueeze(0).detach()
+            if isinstance(sample_idx, int):
+                input = self.input.clone()[sample_idx, :].unsqueeze(0).detach()
+                target = self.target.clone()[sample_idx].unsqueeze(0).detach()
+            else:
+                input = self.input.clone()[sample_idx].detach()
+                target = self.target.clone()[sample_idx].detach()
 
         output = self.model(input)
         loss = self.loss_function(output, target)

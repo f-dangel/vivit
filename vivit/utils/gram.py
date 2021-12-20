@@ -2,14 +2,15 @@
 
 import math
 
-import torch
+from torch import Tensor, cat, einsum
+from torch.nn import Parameter
 
 
 def pairwise_dot(tensor, start_dim=1, flatten=True):
     """Compute pairwise scalar product. Pairs are determined by ``start_dim``.
 
     Args:
-        tensor (torch.Tensor): A tensor whose slices, depending on ``start_dim``,
+        tensor (Tensor): A tensor whose slices, depending on ``start_dim``,
             are vectors whose pairwise scalar product will be computed.
         start_dim (int): Leading dimensions that define the set of vectors that
             whose pairwise scalar product will be computed.
@@ -18,7 +19,7 @@ def pairwise_dot(tensor, start_dim=1, flatten=True):
             unflattened tensor of dimension ``2 * start_dim``.
 
     Returns:
-        torch.Tensor: If ``flatten=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
+        Tensor: If ``flatten=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``tensor``.
 
@@ -58,10 +59,10 @@ def reshape_as_square(tensor):
     """Rearrange the elements of an arbitrary tensor into a square matrix.
 
     Args:
-        tensor (torch.Tensor): Any tensor.
+        tensor (Tensor): Any tensor.
 
     Returns:
-        torch.Tensor: A square-matrix containing the same elements as ``tensor``.
+        Tensor: A square-matrix containing the same elements as ``tensor``.
     """
     dim = int(math.sqrt(tensor.numel()))
 
@@ -90,7 +91,7 @@ def compute_gram_mat(parameters, savefield, start_dim, flatten=True):
             unflattened tensor of dimension ``2 * start_dim``.
 
     Returns:
-        torch.Tensor: If ``flatten=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
+        Tensor: If ``flatten=True`` a square matrix of shape ``[∏ᵢ dᵢ, ∏ᵢ dᵢ]``
             where ``i`` ranges from ``0`` to ``start_dim - 1`` and ``dᵢ`` is the
             ``i``th dimension of ``p.savefield``. For individual gradient Gram
             matrices, this shape is ``[N, N]``, and for GGN Gram matrices
@@ -98,7 +99,7 @@ def compute_gram_mat(parameters, savefield, start_dim, flatten=True):
 
             If ``flatten=False``, the index set of Gram vectors will not be flattened.
             For individual gradient Gram matrices, the returned shape is ``[N, N]``,
-            and for GGN Gram matrices ``[N, C, N, C]``.
+            and for GGN Gram matrices ``[C, N, C, N]``.
     """
     gram = None
 
@@ -121,7 +122,7 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
     The Gram matrix is ``Uᵀ U``.
 
     Args:
-        mat (torch.Tensor): A matrix-shaped tensor whose columns will be multiplied
+        mat (Tensor): A matrix-shaped tensor whose columns will be multiplied
             with the Gram matrix square root.
         parameters (iterable): Iterable object to traverse the parameters that con-
             tribute to the Gram matrix square root.
@@ -132,7 +133,7 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
             results over all parameters.
 
     Returns:
-        list(torch.Tensor): If ``concat=False``. A list of tensors
+        list(Tensor): If ``concat=False``. A list of tensors
             containing the matrix-multiply result. Since application of ``U`` gives
             results of parameter space dimension, the resulting vectors are split
             according to the ``parameters``. If ``mat`` has shape ``[I, J]``, then
@@ -140,7 +141,7 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
             i.e. the leading dimensions are the parameter spaces' degrees of
             freedom, and the last dimension indicates the column space of ``mat``.
 
-        torch.Tensor: If ``concat=True``, every element of the above list is flattened
+        Tensor: If ``concat=True``, every element of the above list is flattened
             up to the column space of ``mat``, then concatenated along the flattened
             parameter dimension.
 
@@ -150,14 +151,14 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
     if mat.dim() != 2:
         raise NotImplementedError("Can only multiply with matrices")
 
-    def mat_prod(p):
+    def mat_prod(p: Parameter):
         """Multiply columns of ``mat`` with ``p``'s Gram matrix square root ``U``.
 
         Args:
-            p (torch.nn.Parameter): Parameter whose ``U`` will be used.
+            p: Parameter whose ``U`` will be used.
 
         Returns:
-            torch.Tensor: Result of the matrix-multiply ``U @ mat``.
+            Tensor: Result of the matrix-multiply ``U @ mat``.
         """
         gram_sqrt = getattr(p, savefield).flatten(end_dim=start_dim - 1)
 
@@ -168,27 +169,51 @@ def sqrt_gram_mat_prod(mat, parameters, savefield, start_dim, concat=False):
 
         equation = f"{sum_idx}{out1_idx},{sum_idx}{out2_idx}->{out1_idx}{out2_idx}"
 
-        return torch.einsum(equation, gram_sqrt, mat)
+        return einsum(equation, gram_sqrt, mat)
 
     result = [mat_prod(p) for p in parameters]
 
     if concat:
-        result = torch.cat([res.flatten(end_dim=res.dim() - 2) for res in result])
+        result = cat([res.flatten(end_dim=res.dim() - 2) for res in result])
 
     return result
+
+
+def mVp(V_t: Tensor, mat: Tensor, start_dim: int) -> Tensor:
+    """Vectorized application of ``Vᵀ`` to a vector.
+
+    Args:
+        V_t: Tensor representation of ``Vᵀ``. Shape ``[*start_dims, *param.shape]``.
+        mat: Stacked vectors onto which ``V`` will be applied. Shape
+            ``[mat.shape[0], *param.shape]``.
+        start_dim: Index that indicates the first axis in ``Vᵀ`` to be contracted.
+
+    Returns:
+        Result of the matrix-multiply ``Vᵀ @ mat``.
+        Shape ``[mat.shape[0], *start_dims]``.
+    """
+    letters = get_letters(V_t.dim() + 1)
+
+    free_idx = letters[0]
+    out_idx = letters[1 : start_dim + 1]
+    sum_idx = letters[start_dim + 1 :]
+
+    equation = f"{free_idx}{sum_idx},{out_idx}{sum_idx}->{free_idx}{out_idx}"
+
+    return einsum(equation, mat, V_t)
 
 
 def partial_contract(tensor, other, start_dims):
     """Compute partial scalar products. Contract dimensions from ``start_dims``.
 
     Args:
-        tensor (torch.Tensor): Left input to the scalar product.
-        other (torch.Tensor): Right input to the scalar product.
+        tensor (Tensor): Left input to the scalar product.
+        other (Tensor): Right input to the scalar product.
         start_dims ([int, int]): List holding the dimensions at which the dot
             product contractions starts.
 
     Returns:
-        torch.Tensor: Pair-wise scalar products. Has ``sum(start_dims)`` dimensions.
+        Tensor: Pair-wise scalar products. Has ``sum(start_dims)`` dimensions.
 
     Raises:
         ValueError: If the contracted dimensions don't match.
@@ -204,7 +229,7 @@ def partial_contract(tensor, other, start_dims):
 
     equation = f"{out_idx1}{sum_idx},{out_idx2}{sum_idx}->{out_idx1}{out_idx2}"
 
-    return torch.einsum(equation, tensor, other)
+    return einsum(equation, tensor, other)
 
 
 def split_list(sequence, lengths):

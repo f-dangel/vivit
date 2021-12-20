@@ -1,8 +1,11 @@
 """Utility functions and base classes for implementing extension hooks."""
 
-import types
+from __future__ import annotations
 
-import torch
+import types
+from typing import Any, Callable, Dict, List
+
+from torch.nn import Module, Parameter, Sequential
 
 
 class ModuleHook:
@@ -15,38 +18,37 @@ class ModuleHook:
     - Implement the ``module_hook`` function.
     """
 
-    def module_hook(self, param, module):
+    def module_hook(self, param: Parameter, module: Module) -> Any:
         """Extract info from a parameter during backpropagation with BackPACK.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
-            module (torch.nn.Module): Layer that `param` is part of.
+            param: Parameter of a neural net.
+            module: Layer that `param` is part of.
 
         Return:
-            Arbitrary output which will be stored in ``param``'s attribute
-            ``self.savefield``.
+            Output which will be stored in ``param``'s attribute ``self.savefield``.
 
         Raises:
             NotImplementedError: Must be implemented by child classes.
         """
         raise NotImplementedError
 
-    def __init__(self, savefield=None):
+    def __init__(self, savefield: str = None):
         """Store the attribute under which results are attached to parameters.
 
         Args:
-            savefield (str, optional): Attribute name under which results can be saved.
-                ``None`` means that the hook has side effects, but no results will be
+            savefield: Attribute name under which results can be saved. ``None``
+                means that the hook has side effects, but no results will be
                 saved in parameters. Default value: ``None``.
         """
         self.savefield = savefield
         self.processed = set()
 
-    def __call__(self, module):
+    def __call__(self, module: Module):
         """Execute hook on all module parameters. Skip already processes parameters.
 
         Args:
-            module (torch.nn.Module): Hook is applied to all parameters in module.
+            module: Hook is applied to all parameters in module.
         """
         for param in module.parameters():
             if self.should_run_hook(param, module):
@@ -56,16 +58,16 @@ class ModuleHook:
         """Check if hooks should be executed on a parameter.
 
         Hooks are only executed once on every trainable parameter.
-        ``torch.nn.Sequential``s are being skipped.
+        ``Sequential``s are being skipped.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
-            module (torch.nn.Module): Layer that `param` is part of.
+            param (Tensor): Parameter of a neural net.
+            module (Module): Layer that `param` is part of.
 
         Returns:
             bool: Whether the hook should be executed on the parameter.
         """
-        if isinstance(module, torch.nn.Sequential):
+        if isinstance(module, Sequential):
             return False
         else:
             return id(param) not in self.processed and param.requires_grad
@@ -74,8 +76,8 @@ class ModuleHook:
         """Execute the hook on parameter, add it to processed items and store result.
 
         Args:
-            param (torch.nn.Parameter): Parameter to execute the hook on.
-            module (torch.nn.Module): Module that contains ``param``.
+            param (Parameter): Parameter to execute the hook on.
+            module (Module): Module that contains ``param``.
         """
         value = self.module_hook(param, module)
         self._save(value, param)
@@ -86,7 +88,7 @@ class ModuleHook:
 
         Args:
             value (any): Arbitrary object that will be stored.
-            param (torch.nn.Parameter): Parameter the value is attached to.
+            param (Parameter): Parameter the value is attached to.
 
         Raises:
             ValueError: If the hook produced an output, but the savefield is empty.
@@ -115,7 +117,7 @@ class ParameterHook(ModuleHook):
         """Extract info from a parameter during backpropagation with BackPACK.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
+            param (Tensor): Parameter of a neural net.
 
         Return:
             Arbitrary output which will be stored in ``param``'s attribute
@@ -130,8 +132,8 @@ class ParameterHook(ModuleHook):
         """Extract info from a parameter during backpropagation with BackPACK.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
-            module (torch.nn.Module): Layer that `param` is part of.
+            param (Tensor): Parameter of a neural net.
+            module (Module): Layer that `param` is part of.
 
         Returns:
             any: Arbitrary output which will be stored in ``param``'s attribute
@@ -152,45 +154,44 @@ class ParameterGroupsHook(ParameterHook):
     - Implement the ``accumulate`` function.
     """
 
-    def group_hook(self, accumulation, group):
+    def group_hook(self, accumulation: Any, group: Dict[str, Any]) -> Any:
         """Process accumulated results from parameter computations.
 
         Args:
-            accumulation (any): Accumulated parameter computations from cache.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
+            accumulation: Accumulated parameter computations from cache.
+            group: Parameter group of a ``torch.optim.Optimizer``.
 
-        Returns: # noqa: DAR102
-            Any: Result that will be saved under the group id.
+        Returns: # noqa: DAR202
+            Result that will be saved under the group id.
 
         Raises:
             NotImplementedError: Must be implemented by child classes.
         """
         raise NotImplementedError
 
-    def param_computation(self, param):
+    def param_computation(self, param: Parameter) -> Any:
         """Compute partial result of group computation for a parameter.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
+            param: Parameter of a neural net.
 
-        Returns: # noqa: DAR102
-            torch.Tensor: Result of parameter computation that will be accumulated
-                group-wise.
+        Returns: # noqa: DAR202
+            Result of parameter computation that will be accumulated group-wise.
 
         Raises:
             NotImplementedError: Must be implemented by child classes.
         """
         raise NotImplementedError
 
-    def accumulate(self, existing, update):
+    def accumulate(self, existing: Any, update: Any) -> Any:
         """Update the currently accumulated result with the update from a parameter.
 
         Args:
-            existing (any): Cached accumulation for a group.
-            update (any): Result from parameter computation.
+            existing: Cached accumulation for a group.
+            update: Result from parameter computation.
 
-        Returns: # noqa: DAR102
-            any: Updated result that will be written to cache.
+        Returns: # noqa: DAR202
+            Updated result that will be written to cache.
 
         Raises:
             NotImplementedError: Must be implemented by child classes.
@@ -250,7 +251,7 @@ class ParameterGroupsHook(ParameterHook):
         """Perform parameter computation. Accumulate result in ``self._accumulations``.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
+            param (Tensor): Parameter of a neural net.
         """
         param_id = id(param)
         group_id = self._param_to_group[param_id]
@@ -288,15 +289,15 @@ class ParameterGroupsHook(ParameterHook):
 
         return self._param_groups[idx]
 
-    def should_run_hook(self, param, module):
+    def should_run_hook(self, param: Parameter, module: Module):
         """Check if hooks should be executed on a parameter.
 
         In addition to the parent class conditions, only execute the hook on a
         parameter that is contained in one of the parameter groups.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
-            module (torch.nn.Module): Layer that `param` is part of.
+            param: Parameter of a neural net.
+            module: Layer that `param` is part of.
 
         Returns:
             bool: Whether the hook should be executed on the parameter.
@@ -312,7 +313,7 @@ class ParameterGroupsHook(ParameterHook):
         parameters in ``param``'s group have already been processed.
 
         Args:
-            param (torch.Tensor): Parameter of a neural net.
+            param (Tensor): Parameter of a neural net.
 
         Returns:
             bool: Whether the group hook should be executed.
@@ -332,7 +333,7 @@ class ParameterGroupsHook(ParameterHook):
         """Accumulate output of parameter computation in the group cache.
 
         Args:
-            result (torch.Tensor): Result from parameter computation.
+            result (Tensor): Result from parameter computation.
             group_id (int): Parameter group id.
         """
         if group_id not in self._accumulations.keys():
@@ -359,23 +360,25 @@ class ParameterGroupsHook(ParameterHook):
 
     @classmethod
     def from_functions(
-        cls, param_groups, param_computation_fn, group_hook_fn, accumulate_fn
-    ):
+        cls,
+        param_groups: List[Dict[str, Any]],
+        param_computation_fn: Callable[[ParameterGroupsHook, Parameter], Any],
+        group_hook_fn: Callable[[ParameterGroupsHook, Any, Dict[str, Any]], Any],
+        accumulate_fn: Callable[[ParameterGroupsHook, Any, Any], Any],
+    ) -> ParameterGroupsHook:
         """Generate parameter group hook by specifying the child class methods.
 
         Args:
-            param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-            param_computation_fn (function): Function with same signature as
-                ``param_computation``. Represents the computation that is carried out
-                for every individual parameter.
-            group_hook_fn (function): Function with same signature as ``group_hook``.
-                Represents the computation that is carried out for every group.
-            accumulate_fn (function): Function with same signature as ``accumulate``.
-                Represents how parameter results are accumulated for a group.
+            param_groups: Parameter group list from a ``torch.optim.Optimizer``.
+            param_computation_fn: Function with signature of ``param_computation``.
+                Represents the computation carried out for every parameter.
+            group_hook_fn: Function with signature of ``group_hook``. Represents
+                the computation that is carried out for every group.
+            accumulate_fn : Function same signature of ``accumulate``. Represents
+                how parameter results are accumulated for a group.
 
         Returns:
-            ParameterGroupsHook: Handles parameter-wise accumulation and group-wise
-                post-processing of results during backpropagation.
+            Hook that can be passed to a ``with backpack(...)`` context.
         """
         hook = cls(param_groups)
 
