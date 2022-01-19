@@ -48,7 +48,7 @@ def test_computations_gammas_ggn(
     """
     problem.set_up()
 
-    param_groups = param_block_fn(problem.model.parameters())
+    param_groups = param_block_fn(problem.model.named_parameters())
     insert_criterion(param_groups, top_k)
 
     autograd_res = AutogradOptimExtensions(problem).gammas_ggn(
@@ -99,7 +99,7 @@ def test_computations_lambdas_ggn(
     """
     problem.set_up()
 
-    param_groups = param_block_fn(problem.model.parameters())
+    param_groups = param_block_fn(problem.model.named_parameters())
     insert_criterion(param_groups, top_k)
 
     autograd_res = AutogradOptimExtensions(problem).lambdas_ggn(

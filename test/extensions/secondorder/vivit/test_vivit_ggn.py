@@ -47,7 +47,7 @@ def test_vivit_ggn_exact_mat_prod(
         mat, subsampling=subsampling
     )
 
-    rtol, atol = 1e-5, 1e-7
+    rtol, atol = 1e-5, 5e-7
     check_sizes_and_values(backpack_res, autograd_res, rtol=rtol, atol=atol)
     problem.tear_down()
 
@@ -99,8 +99,8 @@ def test_vivit_ggn_mc_mat_prod(
         for p in problem.model.parameters()
     ]
 
-    mc_samples = 30000
-    chunks = 30
+    mc_samples = 50000
+    chunks = 50
     backpack_res = BackpackExtensions(problem).vivit_ggn_mc_mat_prod_chunk(
         mat, mc_samples, chunks=chunks, subsampling=subsampling
     )
