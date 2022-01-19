@@ -62,16 +62,16 @@ PARAM_BLOCKS_FN = []
 PARAM_BLOCKS_FN_IDS = []
 
 
-def one_group(parameters):
+def one_group(named_parameters):
     """All parameters in all group."""
-    return [{"params": list(parameters)}]
+    return [{"params": list(p for (_, p) in named_parameters)}]  # noqa C400
 
 
 PARAM_BLOCKS_FN.append(one_group)
 PARAM_BLOCKS_FN_IDS.append("param_groups=one")
 
 
-def per_param(parameters):
+def per_param(named_parameters):
     """One parameter group for each parameter. Only group last two parameters.
 
     Grouping the last two parameters is a fix to avoid degenerate eigenspaces
@@ -80,12 +80,13 @@ def per_param(parameters):
     with ``MSELoss``. Then, the GGN w.r.t. only the last bias is proportional
     to the identity matrix, hence its eigenspace is degenerate.
     """
-    parameters = list(parameters)
+    parameters = list(named_parameters)
     num_params = len(parameters)
 
     if num_params <= 2:
         return one_group(parameters)
     else:
+        parameters = [p for (_, p) in parameters]
         return [{"params": list(parameters)[-2:]}] + [
             {"params": [p]} for p in list(parameters)[: num_params - 2]
         ]
@@ -99,11 +100,16 @@ def weights_and_biases(parameters):
     """Group weights in one, biases in other group."""
     parameters = list(parameters)
 
-    def is_bias(param):
-        return param.dim() == 1
+    def is_bias(name, param):
+        if "bias" in name:
+            return True
+        elif "weight" in name:
+            return False
+        else:
+            return param.dim() == 1
 
-    weights = {"params": [p for p in parameters if is_bias(p)]}
-    biases = {"params": [p for p in parameters if not is_bias(p)]}
+    weights = {"params": [p for (n, p) in parameters if is_bias(n, p)]}
+    biases = {"params": [p for (n, p) in parameters if not is_bias(n, p)]}
 
     if len(biases["params"]) == 1:
         raise ValueError(

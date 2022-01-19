@@ -69,7 +69,7 @@ def test_computations_newton_step(
     """
     problem.set_up()
 
-    param_groups = param_block_fn(problem.model.parameters())
+    param_groups = param_block_fn(problem.model.named_parameters())
     insert_criterion(param_groups, top_k)
 
     autograd_res = AutogradOptimExtensions(problem).newton_step(

@@ -37,7 +37,7 @@ def test_ggn_eigvalsh(
     """
     problem.set_up()
 
-    param_groups = param_groups_fn(problem.model.parameters())
+    param_groups = param_groups_fn(problem.model.named_parameters())
     for group in param_groups:
         group["criterion"] = keep_all
 

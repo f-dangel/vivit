@@ -38,7 +38,7 @@ def test_ggn_eigh_eigenvalues(
     """
     problem.set_up()
 
-    param_groups = param_groups_fn(problem.model.parameters())
+    param_groups = param_groups_fn(problem.model.named_parameters())
     for group in param_groups:
         group["criterion"] = keep_all
 
@@ -95,7 +95,7 @@ def test_ggn_eigh_eigenvectors(
     """
     problem.set_up()
 
-    param_groups = param_groups_fn(problem.model.parameters())
+    param_groups = param_groups_fn(problem.model.named_parameters())
     for group in param_groups:
         group["criterion"] = keep_nonzero
 
@@ -141,7 +141,7 @@ def test_ggn_eigh_eigenvectors(
         overlap_backpack = pairwise_scalar_products(backpack_evecs, backpack_evecs)
         overlap_autograd = pairwise_scalar_products(autograd_evecs, autograd_evecs)
 
-        rtol, atol = 1e-3, 5e-5
+        rtol, atol = 1e-3, 2e-4
         check_sizes_and_values(identity, overlap_autograd, rtol=rtol, atol=atol)
         check_sizes_and_values(identity, overlap_backpack, rtol=rtol, atol=atol)
 
