@@ -1,6 +1,9 @@
 """Vectorized multiplication with the GGN(MC) symmetric factors (square roots)."""
 
-import torch
+from typing import List
+
+from torch import Tensor, cat, einsum
+from torch.nn import Parameter
 
 from vivit.utils.gram import get_letters
 
@@ -16,7 +19,7 @@ def V_mat_prod(mat, parameters, savefield, subsampling=None, concat=False):
         - ``D``: Number of parameters
 
     Args:
-        mat ([torch.Tensor]): Matrix to be right multiplied by ``V``. Must have shape
+        mat ([Tensor]): Matrix to be right multiplied by ``V``. Must have shape
             ``[F, C, N]``. ``F`` is a free leading dimension. Every slice along it is
             multiplied independently.
         parameters (iterable): Sequence of parameters whose GGN(MC) is used for
@@ -28,7 +31,7 @@ def V_mat_prod(mat, parameters, savefield, subsampling=None, concat=False):
             available samples.
 
     Returns:
-        [torch.Tensor] or torch.Tensor: If ``concat`` is ``True``, the multiplication
+        [Tensor] or Tensor: If ``concat`` is ``True``, the multiplication
             results are flattened and concatenated into a ``[F, D]`` tensor. Otherwise,
             a list of tensors with same length as ``parameters`` and shape ``[F, *ᵢ]``
             is returned (``*ᵢ`` is the shape of parameter ``i``).
@@ -42,7 +45,7 @@ def V_mat_prod(mat, parameters, savefield, subsampling=None, concat=False):
     if concat:
         start_dim = 1
         result = [res.flatten(start_dim=start_dim) for res in result]
-        result = torch.cat(result, dim=start_dim)
+        result = cat(result, dim=start_dim)
 
     return result
 
@@ -51,13 +54,13 @@ def _get_V_t(param, savefield, subsampling=None):
     """Fetch the GGN(MC) matrix square root ``Vᵀ`` with active samples.
 
     Args:
-        param (torch.nn.Parameter): Parameter defining ``Vᵀ``.
+        param (Parameter): Parameter defining ``Vᵀ``.
         savefield (str): Attribute under which ``Vᵀ`` is stored in a parameter.
         subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
             available samples.
 
     Returns:
-        torch.Tensor: Sub-sampled ``Vᵀ`` tensor.
+        Tensor: Sub-sampled ``Vᵀ`` tensor.
     """
     V_t = getattr(param, savefield)
 
@@ -67,23 +70,40 @@ def _get_V_t(param, savefield, subsampling=None):
     return V_t
 
 
-def V_param_mat_prod(param, mat, savefield, subsampling=None):
+def V_param_mat_prod(
+    param: Parameter, mat: Tensor, savefield: str, subsampling: List[int] = None
+):
     """Multiply with the GGN(MC) matrix square root ``V`` defined by ``param``.
 
     Args:
-        param (torch.nn.Parameter): Parameter defining ``Vᵀ``.
-        mat (torch.Tensor): Matrix to be multiplied with ``V``.
-        savefield (str): Attribute under which ``Vᵀ`` is stored in ``param``.
-        subsampling ([int]): Sample indices to be used of ``Vᵀ``. ``None`` uses all
+        param: Parameter defining ``Vᵀ``.
+        mat: Matrix to be multiplied with ``V``.
+        savefield: Attribute under which ``Vᵀ`` is stored in ``param``.
+        subsampling: Sample indices to be used of ``Vᵀ``. ``None`` uses all
             available samples.
 
     Returns:
-        torch.Tensor: Result of the matrix-multiply ``V @ mat``.
+        Result of the matrix-multiply ``V @ mat``.
     """
     V_t = _get_V_t(param, savefield, subsampling=subsampling)
     start_dim = 2
 
-    # build einsum equation
+    return Vmp(V_t, mat, start_dim)
+
+
+def Vmp(V_t: Tensor, mat: Tensor, start_dim: int) -> Tensor:
+    """Vectorized application of ``V`` to a vector.
+
+    Args:
+        V_t: Tensor representation of ``Vᵀ``. Shape ``[*start_dims, *param.shape()]``.
+        mat: Stacked vectors onto which ``V`` will be applied. Shape
+            ``[V.shape[0], *start_dims]
+        start_dim: Index that indicates the first axis for a vector in ``mat`` to be
+            contracted.
+
+    Returns:
+        Result of the matrix-multiply ``V @ mat``.
+    """
     letters = get_letters(V_t.dim() + 1)
 
     free_idx = letters[0]
@@ -92,4 +112,4 @@ def V_param_mat_prod(param, mat, savefield, subsampling=None):
 
     equation = f"{free_idx}{sum_idx},{sum_idx}{out_idx}->{free_idx}{out_idx}"
 
-    return torch.einsum(equation, mat, V_t)
+    return einsum(equation, mat, V_t)
