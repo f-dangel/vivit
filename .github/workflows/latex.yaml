@@ -19,6 +19,6 @@ jobs:
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v2
         with:
-          working_directory: tex/model_paper
+          working_directory: tex/paper
           root_file: main.tex
           latexmk_shell_escape: true
