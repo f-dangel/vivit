@@ -64,7 +64,7 @@ PARAM_BLOCKS_FN_IDS = []
 
 def one_group(named_parameters):
     """All parameters in all group."""
-    return [{"params": list(p for (_, p) in named_parameters)}]  # noqa C400
+    return [{"params": [p for (_, p) in named_parameters]}]
 
 
 PARAM_BLOCKS_FN.append(one_group)
