@@ -95,15 +95,12 @@ class ExtensionsTestProblem:
     def make_id(self):
         """Needs to function without call to `set_up`."""
         prefix = (self.id_prefix + "-") if self.id_prefix != "" else ""
-        return (
-            prefix
-            + "dev={}-in={}-model={}-loss={}".format(
-                self.device,
-                tuple(self.input_fn().shape),
-                self.module_fn(),
-                self.loss_function_fn(),
-            ).replace(" ", "")
-        )
+        return prefix + "dev={}-in={}-model={}-loss={}".format(
+            self.device,
+            tuple(self.input_fn().shape),
+            self.module_fn(),
+            self.loss_function_fn(),
+        ).replace(" ", "")
 
     def forward_pass(self, sample_idx: Union[List[int], int] = None):
         """Do a forward pass. Return input, output, and parameters."""

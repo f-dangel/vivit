@@ -676,7 +676,7 @@ class GramComputations:
 
         V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, gram_evecs)
 
-        lambdas = (V_n_T_V_e_d ** 2).sum(0) / gram_evals
+        lambdas = (V_n_T_V_e_d**2).sum(0) / gram_evals
 
         self._lambdas[group_id] = lambdas
 

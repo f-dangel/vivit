@@ -295,7 +295,7 @@ class BootstrapDamping(_Damping):
                 )
 
                 # Compute gain and store sample in gains
-                gain = -gam_hat_re * tau_hat_re - 0.5 * lam_hat_re * tau_hat_re ** 2
+                gain = -gam_hat_re * tau_hat_re - 0.5 * lam_hat_re * tau_hat_re**2
                 gains[resample_idx, :] = gain
 
             # Compute damping based on gains
@@ -444,7 +444,7 @@ class BootstrapDamping2(_Damping):
                 lam_hat_re = torch.mean(second[rand_idx])
 
                 # Compute gain and store sample in gains
-                gain = -gam_hat_re * step - 0.5 * lam_hat_re * step ** 2
+                gain = -gam_hat_re * step - 0.5 * lam_hat_re * step**2
                 gains[resample_idx, :] = gain
 
             # Compute damping based on gains
