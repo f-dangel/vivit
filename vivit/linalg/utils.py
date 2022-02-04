@@ -70,7 +70,7 @@ def normalize(tensors: List[Tensor]):
     Args:
         tensors: Stacked vectors along the first dimension in parameter format.
     """
-    inv_norm = 1 / sum(einsum("i...->i", t ** 2) for t in tensors).sqrt()
+    inv_norm = 1 / sum(einsum("i...->i", t**2) for t in tensors).sqrt()
 
     for idx in range(len(tensors)):
         tensors[idx] = einsum("i,i...->i...", inv_norm, tensors[idx])
