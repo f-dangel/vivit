@@ -6,19 +6,17 @@ help:
 	@echo "uninstall"
 	@echo "        Unstall vivit"
 	@echo "install-dev"
-	@echo "        Install only the development tools"
+	@echo "        Install vivit and development tools"
 	@echo "install-test"
-	@echo "        Install only the testing tools (included in install-dev)"
+	@echo "        Install vivit and testing tools"
 	@echo "test"
 	@echo "        Run pytest on test and report coverage"
-	@echo "test-light"
-	@echo "        Run pytest on the light part of test and report coverage"
-	@echo "install-examples"
-	@echo "        Install only the dependencies to run examples"
+	@echo "install-exp"
+	@echo "        Install vivit and dependencies to run experiments"
 	@echo "examples"
 	@echo "        Run the examples"
 	@echo "install-lint"
-	@echo "        Install only the linter tools (included in install-dev)"
+	@echo "        Install vivit and the linter tools"
 	@echo "isort"
 	@echo "        Run isort (sort imports) on the project"
 	@echo "isort-check"
@@ -39,32 +37,25 @@ help:
 .PHONY: install
 
 install:
-	@pip install -r requirements.txt
-	@pip install .
+	@pip install -e .
 
 .PHONY: uninstall
 
 uninstall:
 	@pip uninstall vivit
 
-
 .PHONY: install-dev
 
-install-dev:
-	@make install-test
-	@make install-lint
+install-dev: install-lint install-test install-exp
 
 .PHONY: install-test
 
 install-test:
-	@pip install -r requirements/test.txt
+	@pip install -e .[test]
 
 .PHONY: test test-light
 
 test:
-	@pytest -vx --run-optional-tests=expensive --cov=vivit test
-
-test-light:
 	@pytest -vx --cov=vivit test
 
 .PHONY: examples
@@ -72,15 +63,15 @@ test-light:
 examples:
 	@cd exp/examples && bash run_examples.sh
 
-.PHONY: install-examples
+.PHONY: install-exp
 
-install-examples:
-	@cd exp && pip install -r requirements-exp.txt
+install-exp:
+	@pip install -e .[exp]
 
 .PHONY: install-lint
 
 install-lint:
-	@pip install -r requirements/lint.txt
+	@pip install -e .[lint]
 
 .PHONY: isort isort-check
 

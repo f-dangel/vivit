@@ -29,15 +29,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         make install-test
-        make install
     - name: Run test
-      if: contains('refs/heads/master refs/heads/release', github.ref)
       run: |
         make test
-    - name: Run test-light
-      if: contains('refs/heads/master refs/heads/release', github.ref) != 1
-      run: |
-        make test-light
 
     - name: Test coveralls - python ${{ matrix.python-version }}
       run: coveralls --service=github

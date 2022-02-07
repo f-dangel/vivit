@@ -1,6 +1,0 @@
-# Dependencies for testing vivit
-
-coveralls
-pytest
-pytest-cov
-pytest-optional-tests

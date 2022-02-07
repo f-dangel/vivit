@@ -1,16 +1,19 @@
-"""Setup file for vivit."""
+"""Setup file for ViViT.
 
-from setuptools import find_packages, setup
+Use ``setup.cfg`` for configuration.
+"""
 
-setup(
-    author="Felix Dangel, Lukas Tatzel",
-    name="vivit",
-    version="0.0.1",
-    description="Access curvature through the GGN's low-rank structure with BackPACK",
-    long_description_content_type="text/markdown",
-    url="https://github.com/f-dangel/vivit",
-    license="MIT",
-    packages=find_packages(),
-    zip_safe=False,
-    python_requires=">=3.7",
-)
+import sys
+
+from pkg_resources import VersionConflict, require
+from setuptools import setup
+
+try:
+    require("setuptools>=38.3")
+except VersionConflict:
+    print("Error: version of setuptools is too old (<38.3)!")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    setup(use_scm_version=True)
