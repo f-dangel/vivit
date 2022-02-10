@@ -24,9 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        make install-test
-        make install-examples
-        make install
+        make install-exp
     - name: Run examples
       run: |
         make examples
