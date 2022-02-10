@@ -1,1 +1,1 @@
-"""Tests for `lowrank.extensions.secondorder.sqrt_ggn`."""
+"""Tests for `vivit.extensions.secondorder.sqrt_ggn`."""

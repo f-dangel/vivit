@@ -1,15 +1,8 @@
-"""Convert problem settings.
-
-Note:
-    This is (almost) an exact copy of
-    https://github.com/f-dangel/backpack/blob/development/test/extensions/problem.py#L1-L148 # noqa: B950
-"""
-
 import copy
 from test.utils import get_available_devices
+from typing import List, Union
 
 import torch
-
 from backpack import extend
 
 
@@ -102,24 +95,25 @@ class ExtensionsTestProblem:
     def make_id(self):
         """Needs to function without call to `set_up`."""
         prefix = (self.id_prefix + "-") if self.id_prefix != "" else ""
-        return (
-            prefix
-            + "dev={}-in={}-model={}-loss={}".format(
-                self.device,
-                tuple(self.input_fn().shape),
-                self.module_fn(),
-                self.loss_function_fn(),
-            ).replace(" ", "")
-        )
+        return prefix + "dev={}-in={}-model={}-loss={}".format(
+            self.device,
+            tuple(self.input_fn().shape),
+            self.module_fn(),
+            self.loss_function_fn(),
+        ).replace(" ", "")
 
-    def forward_pass(self, sample_idx=None):
+    def forward_pass(self, sample_idx: Union[List[int], int] = None):
         """Do a forward pass. Return input, output, and parameters."""
         if sample_idx is None:
             input = self.input.clone().detach()
             target = self.target.clone().detach()
         else:
-            input = self.input.clone()[sample_idx, :].unsqueeze(0).detach()
-            target = self.target.clone()[sample_idx].unsqueeze(0).detach()
+            if isinstance(sample_idx, int):
+                input = self.input.clone()[sample_idx, :].unsqueeze(0).detach()
+                target = self.target.clone()[sample_idx].unsqueeze(0).detach()
+            else:
+                input = self.input.clone()[sample_idx].detach()
+                target = self.target.clone()[sample_idx].detach()
 
         output = self.model(input)
         loss = self.loss_function(output, target)
@@ -150,3 +144,27 @@ class ExtensionsTestProblem:
                 f"'mean': {mean_loss}, 'sum': {sum_loss}, loss: {loss}",
             )
         return factor
+
+    def compute_reduction_factor(self):
+        """Compute and return the loss function's reduction factor in batch mode."""
+        _, _, loss = self.forward_pass()
+
+        batch_size = self.input.shape[0]
+        loss_list = torch.zeros(batch_size, device=self.device)
+
+        for n in range(batch_size):
+            _, _, loss_n = self.forward_pass(sample_idx=n)
+            loss_list[n] = loss_n
+
+        return self.get_reduction_factor(loss, loss_list)
+
+    def reduction_string(self):
+        """Return string of loss function reduction.
+
+        Returns:
+            str: Reduction string. ``'unknown'`` if the string cannot be retrieved.
+        """
+        try:
+            return self.loss_function_fn().reduction
+        except AttributeError:
+            return "unknown"

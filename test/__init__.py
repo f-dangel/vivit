@@ -1,1 +1,1 @@
-"""Tests for ``lowrank`` library."""
+"""Tests for ``vivit`` library."""
