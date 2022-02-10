@@ -11,10 +11,6 @@ help:
 	@echo "        Install vivit and testing tools"
 	@echo "test"
 	@echo "        Run pytest on test and report coverage"
-	@echo "install-exp"
-	@echo "        Install vivit and dependencies to run experiments"
-	@echo "examples"
-	@echo "        Run the examples"
 	@echo "install-lint"
 	@echo "        Install vivit and the linter tools"
 	@echo "isort"
@@ -46,7 +42,7 @@ uninstall:
 
 .PHONY: install-dev
 
-install-dev: install-lint install-test install-exp
+install-dev: install-lint install-test
 
 .PHONY: install-test
 
@@ -57,16 +53,6 @@ install-test:
 
 test:
 	@pytest -vx --cov=vivit test
-
-.PHONY: examples
-
-examples:
-	@cd exp/examples && bash run_examples.sh
-
-.PHONY: install-exp
-
-install-exp:
-	@pip install -e .[exp]
 
 .PHONY: install-lint
 

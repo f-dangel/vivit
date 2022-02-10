@@ -9,4 +9,3 @@ dependencies:
     - -e .
     - -e .[lint]
     - -e .[test]
-    - -e .[exp]
