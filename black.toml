@@ -8,7 +8,7 @@ exclude = '''
       \.eggs
     | \.git
     | \.pytest_cache
-    | docs
+    | docs/rtd
     | build
     | dist
   )/
