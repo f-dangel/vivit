@@ -17,6 +17,9 @@ Provided functionality includes computing
 These operations can also further approximate the GGN to reduce cost via
 sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.
 
+– **Documentation:** https://vivit.readthedocs.io/en/latest/
+- **Bug reports & feature requests:** https://github.com/f-dangel/vivit/issues
+
 **How does it work?** ViViT uses and extends
  [BackPACK](https://github.com/f-dangel/backpack) for
  [PyTorch](https://github.com/pytorch/pytorch). The described functionality is
