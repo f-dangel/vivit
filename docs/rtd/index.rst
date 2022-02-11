@@ -17,6 +17,8 @@ ViViT is tied to, and can only be used with, `BackPACK
   usage
   main-api
 
+  basic_usage/index
+
 .. toctree::
 
   examples

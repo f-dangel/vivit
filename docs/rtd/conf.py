@@ -30,8 +30,33 @@ release = "0.0.1"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = []
+extensions = [
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.coverage",
+    "sphinx.ext.autosectionlabel",
+    "sphinx.ext.intersphinx",
+    "sphinx_gallery.gen_gallery",
+]
 
+# -- Intersphinx config -----------------------------------------------------
+
+intersphinx_mapping = {"torch": ("https://pytorch.org/docs/stable/", None)}
+
+# -- Sphinx Gallery config ---------------------------------------------------
+
+sphinx_gallery_conf = {
+    "examples_dirs": [
+        "../examples/basic_usage",
+        # "../examples/use_cases",
+    ],  # path to your example scripts
+    "gallery_dirs": [
+        "basic_usage",
+        # "use_cases",
+    ],  # path to where to save gallery generated output
+    "default_thumb_file": "assets/vivit_logo.png",
+    "filename_pattern": "example",
+}
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
