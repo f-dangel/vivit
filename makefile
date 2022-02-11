@@ -7,6 +7,8 @@ help:
 	@echo "        Unstall vivit"
 	@echo "install-dev"
 	@echo "        Install vivit and development tools"
+	@echo "install-doc"
+	@echo "        Install vivit and documentation tools"
 	@echo "install-test"
 	@echo "        Install vivit and testing tools"
 	@echo "test"
@@ -42,7 +44,12 @@ uninstall:
 
 .PHONY: install-dev
 
-install-dev: install-lint install-test
+install-dev: install-lint install-test install-doc
+
+.PHONY: install-doc
+
+install-doc:
+	@pip install -e .[doc]
 
 .PHONY: install-test
 
