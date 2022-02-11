@@ -226,9 +226,6 @@ class EigvalshComputation:
 
         Args:
             param_groups: Parameter groups that define the GGN block structure.
-
-        Raises:
-            ValueError: If there is a format conflict in the parameter groups.
         """
         self._check_key_exists(param_groups, "params")
         self._check_unique_params(param_groups)
