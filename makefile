@@ -5,6 +5,8 @@ help:
 	@echo "        Install vivit and dependencies"
 	@echo "uninstall"
 	@echo "        Unstall vivit"
+	@echo "docs"
+	@echo "        Build the documentation"
 	@echo "install-dev"
 	@echo "        Install vivit and development tools"
 	@echo "install-docs"
@@ -41,6 +43,12 @@ install:
 
 uninstall:
 	@pip uninstall vivit
+
+.PHONY: docs
+
+docs:
+	@cd docs/rtd && make html
+	@echo "\nOpen docs/rtd/index.html to see the result."
 
 .PHONY: install-dev
 
