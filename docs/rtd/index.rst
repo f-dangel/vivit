@@ -1,20 +1,22 @@
-.. ViViT documentation master file, created by
-   sphinx-quickstart on Fri Feb 11 10:50:48 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-Welcome to ViViT's documentation!
+ViViT
 =================================
 
+ViViT is a collection of numerical tricks to efficiently access curvature from
+the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
+
+.. code:: bash
+
+  pip install vivit-for-pytorch@git+https://github.com/f-dangel/vivit.git#egg=vivit-for-pytorch
+
+ViViT is tied to, and can only be used with, `BackPACK
+<http://www.github.com/f-dangel/backpack>`_.
+
+
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
 
+  usage
+  main-api
 
+.. toctree::
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+  examples
