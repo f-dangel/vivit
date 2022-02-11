@@ -6,4 +6,4 @@ dependencies:
   - pip=21.2.4
   - python=3.8.5
   - pip:
-    - -e .[lint,test,doc]
+    - -e .[lint,test,docs]
