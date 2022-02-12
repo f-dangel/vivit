@@ -36,7 +36,7 @@ class BackpackLinalgExtensions(BackpackExtensions):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
-        return computation._evals
+        return {id(group): computation.get_result(group) for group in param_groups}
 
     def eigh_ggn(
         self, param_groups: List[Dict], subsampling: Union[List[int], None]

@@ -82,3 +82,11 @@ def test_eigvalsh_unique_params():
 
     with raises(ValueError):
         EigvalshComputation().get_extension_hook(param_groups)
+
+
+def test_get_result():
+    """Test retrieving results for an unknown group fails."""
+    group = {"params": []}
+
+    with raises(KeyError):
+        EigvalshComputation().get_result(group)
