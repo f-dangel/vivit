@@ -14,13 +14,11 @@ from vivit.utils.hooks import ParameterGroupsHook
 class EigvalshComputation:
     """Computes GGN eigenvalues during backpropagation via ``G = V Vᵀ``.
 
-    This class provides two main functions for usage with BackPACK:
+    Interaction happens via the following functions:
 
     - ``get_extension`` sets up the extension for a ``with backpack(...)`` context.
     - ``get_extension_hook`` sets up the hook for a ``with backpack(...)`` context.
-
-    GGN eigenvalues will be stored as values of the dictionary ``self._evals`` with
-    key corresponding to the parameter group id.
+    - ``get_result`` retrieves the eigenvalues for a GGN block after backpropagation.
     """
 
     def __init__(
@@ -44,6 +42,23 @@ class EigvalshComputation:
         # filled via side effects during backpropagation, keys are group ids
         self._batch_size: Dict[int, int] = {}
         self._evals: Dict[int, Tensor] = {}
+
+    def get_result(self, group: Dict) -> Tensor:
+        """Fetch the eigenvalues of the GGN block.
+
+        Args:
+            group: Parameter group that defines the GGN block.
+
+        Returns:
+            One-dimensional tensor containing the eigenvalues in ascending order.
+
+        Raises:
+            KeyError: If there are no results for the passed group.
+        """
+        try:
+            return self._evals[id(group)]
+        except KeyError as e:
+            raise KeyError("No results available for this group") from e
 
     def get_extension(self) -> BackpropExtension:
         """Instantiate the extension for a backward pass with BackPACK.
