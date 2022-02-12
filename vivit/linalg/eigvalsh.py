@@ -89,9 +89,9 @@ class EigvalshComputation:
                   approximation.
 
             keep_backpack_buffers: Keep buffers from used BackPACK extensions during
-                backpropagation. Default: ``False``.
+                backpropagation. Default: ``False``. # noqa: DAR101
             keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``.
+                Default: ``False``. # noqa: DAR101
 
         Returns:
             BackPACK extension hook to compute eigenvalues that should be passed to the
