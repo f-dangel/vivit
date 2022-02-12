@@ -15,8 +15,10 @@ from test.problem import ExtensionsTestProblem
 from test.utils import check_sizes_and_values
 from typing import Any, Callable, Dict, Iterator, List, Union
 
-from pytest import mark
-from torch import Tensor
+from pytest import mark, raises
+from torch import Tensor, rand
+
+from vivit.linalg.eigvalsh import EigvalshComputation
 
 
 @mark.parametrize("param_groups_fn", PARAM_GROUPS_FN, ids=PARAM_GROUPS_FN_IDS)
@@ -60,3 +62,23 @@ def test_ggn_eigvalsh(
         check_sizes_and_values(backpack_evals, autograd_evals, rtol=rtol, atol=atol)
 
     problem.tear_down()
+
+
+def test_eigvalsh_missing_key():
+    """Test detection of missing 'params' in parameter groups."""
+    param_groups = [{"param": []}]
+
+    with raises(ValueError):
+        EigvalshComputation().get_extension_hook(param_groups)
+
+
+def test_eigvalsh_unique_params():
+    """Test detection of parameters assigned to multiple parameter groups."""
+    p1, p2 = rand(10), rand(5)
+    param_groups = [
+        {"params": [p1, p2]},
+        {"params": [p1]},
+    ]
+
+    with raises(ValueError):
+        EigvalshComputation().get_extension_hook(param_groups)
