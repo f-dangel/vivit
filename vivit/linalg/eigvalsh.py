@@ -12,27 +12,26 @@ from vivit.utils.hooks import ParameterGroupsHook
 
 
 class EigvalshComputation:
-    """Computes GGN eigenvalues during backpropagation via ``G = V Vᵀ``.
-
-    Interaction happens via the following functions:
-
-    - ``get_extension`` sets up the extension for a ``with backpack(...)`` context.
-    - ``get_extension_hook`` sets up the hook for a ``with backpack(...)`` context.
-    - ``get_result`` retrieves the eigenvalues for a GGN block after backpropagation.
-    """
+    """Provide BackPACK extension and hook to compute GGN eigenvalues."""
 
     def __init__(
         self, subsampling: List[int] = None, mc_samples: int = 0, verbose: bool = False
     ):
-        """Store indices of samples used for each task.
+        """Specify GGN approximations. Use no approximations by default.
 
-        Assumes that the loss function uses ``reduction = 'mean'``.
+        Note:
+            The loss function must use ``reduction = 'mean'``.
 
         Args:
-            subsampling: Sample indices used for the compution. Default ``None`` (all).
-            mc_samples: Number of Monte-Carlo samples to approximate the loss Hessian.
-                Default: ``0`` (exact loss Hessian).
-            verbose: Turn on verbose mode. Default: ``False``.
+            subsampling: Indices of samples used for GGN curvature sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples. Defaults to ``None`` (no curvature sub-sampling).
+            mc_samples: If ``0``, don't Monte-Carlo (MC) approximate the GGN. Otherwise,
+                specifies the number of MC samples used to approximate the
+                backpropagated loss Hessian. Default: ``0`` (no MC approximation).
+            verbose: Turn on verbose mode. If enabled, this will print what's happening
+                during backpropagation to command line (consider it a debugging tool).
+                Defaults to ``False``.
         """
         self._subsampling = subsampling
         self._mc_samples = mc_samples
@@ -44,16 +43,16 @@ class EigvalshComputation:
         self._evals: Dict[int, Tensor] = {}
 
     def get_result(self, group: Dict) -> Tensor:
-        """Fetch the eigenvalues of the GGN block.
+        """Return eigenvalues of a GGN block after the backward pass.
 
         Args:
             group: Parameter group that defines the GGN block.
 
         Returns:
-            One-dimensional tensor containing the eigenvalues in ascending order.
+            One-dimensional tensor containing the block's eigenvalues (ascending order).
 
         Raises:
-            KeyError: If there are no results for the passed group.
+            KeyError: If there are no results for the group.
         """
         try:
             return self._evals[id(group)]
@@ -61,10 +60,11 @@ class EigvalshComputation:
             raise KeyError("No results available for this group") from e
 
     def get_extension(self) -> BackpropExtension:
-        """Instantiate the extension for a backward pass with BackPACK.
+        """Instantiate the BackPACK extension for computing GGN eigenvalues.
 
         Returns:
-            Extension passed to a ``with backpack(...)`` context.
+            BackPACK extension to compute eigenvalues that should be passed to the
+            ``with backpack(...)`` context.
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
@@ -74,23 +74,29 @@ class EigvalshComputation:
         keep_backpack_buffers: bool = False,
         keep_batch_size: bool = False,
     ) -> Callable[[Module], None]:
-        """Return hook to be executed right after a BackPACK extension during backprop.
-
-        This hook computes GGN eigenvalues during backpropagation and stores them under
-        ``self._evals`` under the group id.
+        """Instantiates the BackPACK extension hook to compute GGN eigenvalues.
 
         Args:
-            param_groups: Parameter group list as required by a
-                ``torch.optim.Optimizer``. Specifies the block structure.
-                Each group must specify the ``'params'`` key which contains a list of
-                the parameters that form the GGN block.
+            param_groups: Parameter groups list as required by a
+                ``torch.optim.Optimizer``. Specifies the block structure: Each group
+                must specify the ``'params'`` key which contains a list of the
+                parameters that form a GGN block. Examples:
+
+                - ``[{'params': list(p for p in model.parameters()}]`` computes
+                  eigenvalues for the full GGN (one block).
+                - ``[{'params': [p]} for p in model.parameters()]`` computes
+                  eigenvalues for each block of a per-parameter block-diagonal GGN
+                  approximation.
+
             keep_backpack_buffers: Keep buffers from used BackPACK extensions during
-                backpropagation. Default: ``False``.
+                backpropagation. Default: ``False``. # noqa: DAR101
             keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``.
+                Default: ``False``. # noqa: DAR101
 
         Returns:
-            Hook function for a ``with backpack(...)`` context.
+            BackPACK extension hook to compute eigenvalues that should be passed to the
+            ``with backpack(...)`` context. The hook computes GGN eigenvalues during
+            backpropagation and stores them internally (under ``self._evals``).
         """
         self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(
