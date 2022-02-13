@@ -68,9 +68,7 @@ class EigvalshComputation:
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
-    def get_extension_hook(
-        self, param_groups: List[Dict], keep_batch_size: bool = False
-    ) -> Callable[[Module], None]:
+    def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
         """Instantiates the BackPACK extension hook to compute GGN eigenvalues.
 
         Args:
@@ -85,9 +83,6 @@ class EigvalshComputation:
                   eigenvalues for each block of a per-parameter block-diagonal GGN
                   approximation.
 
-            keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``. # noqa: DAR101
-
         Returns:
             BackPACK extension hook to compute eigenvalues that should be passed to the
             ``with backpack(...)`` context. The hook computes GGN eigenvalues during
@@ -99,7 +94,7 @@ class EigvalshComputation:
         )
 
         param_computation = self.get_param_computation()
-        group_hook = self.get_group_hook(keep_batch_size)
+        group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
         hook = ParameterGroupsHook.from_functions(
@@ -184,13 +179,9 @@ class EigvalshComputation:
         return accumulate
 
     def get_group_hook(
-        self, keep_batch_size: bool
+        self,
     ) -> Callable[[ParameterGroupsHook, Tensor, Dict[str, Any]], None]:
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
-
-        Args:
-            keep_batch_size: Keep batch size stored in ``self._batch_size``. Delete
-                if ``True``.
 
         Returns:
             Function that can be bound to a ``ParameterGroupsHook`` instance. Performs
@@ -211,12 +202,9 @@ class EigvalshComputation:
             """
             group_id = id(group)
 
-            if keep_batch_size:
-                batch_size = batch_sizes[group_id]
-            else:
-                if verbose:
-                    print(f"Group {id(group)}: Delete 'batch_size'")
-                batch_size = batch_sizes.pop(group_id)
+            if verbose:
+                print(f"Group {id(group)}: Delete 'batch_size'")
+            batch_size = batch_sizes.pop(group_id)
 
             gram_mat = reshape_as_square(accumulation)
 
