@@ -4,7 +4,7 @@
 
 [![Python
 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
-[![tests](https://github.com/f-dangel/vivit/actions/workflows/test.yaml/badge.svg)]
+![tests](https://github.com/f-dangel/vivit/actions/workflows/test.yaml/badge.svg)
 
 ViViT is a collection of numerical tricks to efficiently access curvature from
 the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
