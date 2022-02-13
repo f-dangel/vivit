@@ -4,20 +4,20 @@
 
 [![Python
 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
-[![tests](https://github.com/f-dangel/vivit/actions/workflows/test.yaml/badge.svg)]
+![tests](https://github.com/f-dangel/vivit/actions/workflows/test.yaml/badge.svg)
 
 ViViT is a collection of numerical tricks to efficiently access curvature from
 the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
 Provided functionality includes computing
-- GGN eigenvalues
+- GGN eigenvalues ([basic
+  example](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigvalsh.html#computing-ggn-eigenvalues))
 - GGN eigenpairs (eigenvalues + eigenvector)
 - 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 - Newton steps
 
 These operations can also further approximate the GGN to reduce cost via
 sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.
-
-– **Documentation:** https://vivit.readthedocs.io/en/latest/
+- **Documentation:** https://vivit.readthedocs.io/en/latest/
 - **Bug reports & feature requests:** https://github.com/f-dangel/vivit/issues
 
 **How does it work?** ViViT uses and extends
@@ -35,7 +35,9 @@ pip install vivit-for-pytorch@git+https://github.com/f-dangel/vivit.git#egg=vivi
 ```
 
 ## Examples
-👷🏗👷🏗 Coming soon! 👷🏗👷🏗
+
+Basic and advanced demos can be found in the
+[documentation](https://vivit.readthedocs.io/en/latest/basic_usage/index.html).
 
 ## How to cite
 If you are using ViViT, consider citing the [paper](https://arxiv.org/abs/2106.02624)
