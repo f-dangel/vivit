@@ -11,7 +11,7 @@ First, the imports.
 
 from backpack import backpack, extend
 from backpack.utils.examples import _autograd_ggn_exact_columns
-from torch import allclose, cuda, device, isclose, manual_seed, rand, stack
+from torch import cuda, device, isclose, manual_seed, rand, stack
 from torch.linalg import eigvalsh
 from torch.nn import Linear, MSELoss, ReLU, Sequential
 
@@ -66,7 +66,7 @@ loss = loss_function(model(X), y)
 
 computation = EigvalshComputation()
 
-group = {"params": list(p for p in model.parameters() if p.requires_grad)}
+group = {"params": [p for p in model.parameters() if p.requires_grad]}
 param_groups = [group]
 
 # %%
