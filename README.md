@@ -9,15 +9,15 @@
 ViViT is a collection of numerical tricks to efficiently access curvature from
 the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
 Provided functionality includes computing
-- GGN eigenvalues
+- [GGN
+  eigenvalues](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigvalsh.html#ggn-eigenvalues)
 - GGN eigenpairs (eigenvalues + eigenvector)
 - 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 - Newton steps
 
 These operations can also further approximate the GGN to reduce cost via
 sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.
-
-– **Documentation:** https://vivit.readthedocs.io/en/latest/
+- **Documentation:** https://vivit.readthedocs.io/en/latest/
 - **Bug reports & feature requests:** https://github.com/f-dangel/vivit/issues
 
 **How does it work?** ViViT uses and extends
