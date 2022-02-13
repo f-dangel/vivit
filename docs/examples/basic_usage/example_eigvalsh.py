@@ -1,6 +1,6 @@
 """
-GGN eigenvalues
-===============
+Computing GGN eigenvalues
+=========================
 
 In this example we demonstrate how to use ViViT's
 :py:class:`EigvalshComputation <vivit.EigvalshComputation>` to obtain the GGN's

@@ -11,7 +11,7 @@ the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
 It is designed to be used with `BackPACK
 <http://www.github.com/f-dangel/backpack>`_ and can compute
 
-- GGN eigenvalues
+- GGN eigenvalues (:ref:`basic example <Computing GGN eigenvalues>`)
 
 - GGN eigenpairs (eigenvalues + eigenvector)
 
