@@ -68,12 +68,7 @@ class EigvalshComputation:
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
-    def get_extension_hook(
-        self,
-        param_groups: List[Dict],
-        keep_backpack_buffers: bool = False,
-        keep_batch_size: bool = False,
-    ) -> Callable[[Module], None]:
+    def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
         """Instantiates the BackPACK extension hook to compute GGN eigenvalues.
 
         Args:
@@ -88,11 +83,6 @@ class EigvalshComputation:
                   eigenvalues for each block of a per-parameter block-diagonal GGN
                   approximation.
 
-            keep_backpack_buffers: Keep buffers from used BackPACK extensions during
-                backpropagation. Default: ``False``. # noqa: DAR101
-            keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``. # noqa: DAR101
-
         Returns:
             BackPACK extension hook to compute eigenvalues that should be passed to the
             ``with backpack(...)`` context. The hook computes GGN eigenvalues during
@@ -103,8 +93,8 @@ class EigvalshComputation:
             param_groups, self._batch_size, verbose=self._verbose
         )
 
-        param_computation = self.get_param_computation(keep_backpack_buffers)
-        group_hook = self.get_group_hook(keep_batch_size)
+        param_computation = self.get_param_computation()
+        group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
         hook = ParameterGroupsHook.from_functions(
@@ -132,23 +122,19 @@ class EigvalshComputation:
         return extension_hook
 
     def get_param_computation(
-        self, keep_backpack_buffers: bool
+        self,
     ) -> Callable[[ParameterGroupsHook, Parameter], Tensor]:
         """Set up the ``param_computation`` function of the ``ParameterGroupsHook``.
 
-        Args:
-            keep_backpack_buffers: Do not delete BackPACK buffers during
-                backpropagation. If ``False``, they will be freed.
-
         Returns:
-            Function that can be bound to a ``ParameterGroupsHook`` instance. Performs
-            an action on each group parameter. The results are later accumulated.
+            Function that can be bound to a ``ParameterGroupsHook`` instance. It
+            computes the Gram matrix for a parameter and deletes the BackPACK buffer.
         """
         verbose = self._verbose
         savefield = self._savefield
 
         def param_computation(self: ParameterGroupsHook, param: Parameter) -> Tensor:
-            """Compute the Gram matrix and delete BackPACK buffers if specified.
+            """Compute the Gram matrix and delete BackPACK buffers.
 
             Args:
                 self: Group hook to which this function will be bound.
@@ -159,10 +145,9 @@ class EigvalshComputation:
             """
             gram_mat = getattr(param, savefield)["gram_mat"]()
 
-            if not keep_backpack_buffers:
-                if verbose:
-                    print(f"Param {id(param)}: Delete '{savefield}'")
-                delattr(param, savefield)
+            if verbose:
+                print(f"Param {id(param)}: Delete '{savefield}'")
+            delattr(param, savefield)
 
             return gram_mat
 
@@ -173,7 +158,7 @@ class EigvalshComputation:
 
         Returns:
             Function that can be bound to a ``ParameterGroupsHook`` instance.
-            Accumulates the parameter computations.
+            Accumulates the parameter Gram matrices.
         """
 
         def accumulate(
@@ -194,13 +179,9 @@ class EigvalshComputation:
         return accumulate
 
     def get_group_hook(
-        self, keep_batch_size: bool
+        self,
     ) -> Callable[[ParameterGroupsHook, Tensor, Dict[str, Any]], None]:
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
-
-        Args:
-            keep_batch_size: Keep batch size stored in ``self._batch_size``. Delete
-                if ``True``.
 
         Returns:
             Function that can be bound to a ``ParameterGroupsHook`` instance. Performs
@@ -221,12 +202,9 @@ class EigvalshComputation:
             """
             group_id = id(group)
 
-            if keep_batch_size:
-                batch_size = batch_sizes[group_id]
-            else:
-                if verbose:
-                    print(f"Group {id(group)}: Delete 'batch_size'")
-                batch_size = batch_sizes.pop(group_id)
+            if verbose:
+                print(f"Group {id(group)}: Delete 'batch_size'")
+            batch_size = batch_sizes.pop(group_id)
 
             gram_mat = reshape_as_square(accumulation)
 
