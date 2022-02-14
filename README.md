@@ -1,6 +1,6 @@
 [👷🏗👷🏗 **Coming soon!** Official release with improved docs. Stay tuned. 👷🏗👷🏗]
 
-# <img alt="ViViT" src="./docs/rtd/assets/vivit_logo.png" height="90"> ViViT: Curvature access through the generalized Gauss-Newton's low-rank structure
+# <img alt="ViViT" src="./docs/rtd/assets/vivit_logo.svg" height="90"> ViViT: Curvature access through the generalized Gauss-Newton's low-rank structure
 
 [![Python
 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
