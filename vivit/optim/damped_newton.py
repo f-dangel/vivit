@@ -61,7 +61,6 @@ class DampedNewton(Optimizer):
         keep_gram_mat=False,
         keep_gram_evals=False,
         keep_gram_evecs=False,
-        keep_gammas=False,
         keep_lambdas=False,
         keep_batch_size=False,
         keep_coefficients: bool = False,
@@ -80,9 +79,6 @@ class DampedNewton(Optimizer):
             keep_gram_evecs (bool, optional): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in
                 ``self._computations._gram_computation._gram_evecs``. Default: ``False``
-            keep_gammas (bool, optional): Keep buffers for first-order directional
-                derivatives under group id in
-                ``self._computations._gram_computation._gammas``. Default: ``False``
             keep_lambdas (bool, optional): Keep buffers for second-order directional
                 derivatives under group id in
                 ``self._computations._gram_computation._lambdas``. Default: ``False``
@@ -107,7 +103,6 @@ class DampedNewton(Optimizer):
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
-            keep_gammas=keep_gammas,
             keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
             keep_coefficients=keep_coefficients,
@@ -122,7 +117,6 @@ class DampedNewton(Optimizer):
         keep_gram_mat: bool = False,
         keep_gram_evals: bool = False,
         keep_gram_evecs: bool = False,
-        keep_gammas: bool = False,
         keep_lambdas: bool = False,
         keep_batch_size: bool = False,
         keep_coefficients: bool = False,
@@ -148,9 +142,6 @@ class DampedNewton(Optimizer):
             keep_gram_evecs: (only relevant if closure us passed) Keep buffers for
                 filtered Gram matrix eigenvectors under group id in
                 ``self._computations._gram_computation._gram_evecs``. Default: ``False``
-            keep_gammas: (only relevant if closure us passed) Keep buffers for
-                first-order directional derivatives under group id in
-                ``self._computations._gram_computation._gammas``. Default: ``False``
             keep_lambdas: (only relevant if closure us passed) Keep buffers for
                 second-order directional derivatives under group id in
                 ``self._computations._gram_computation._lambdas``. Default: ``False``
@@ -175,7 +166,6 @@ class DampedNewton(Optimizer):
                 keep_gram_mat=keep_gram_mat,
                 keep_gram_evals=keep_gram_evals,
                 keep_gram_evecs=keep_gram_evecs,
-                keep_gammas=keep_gammas,
                 keep_lambdas=keep_lambdas,
                 keep_batch_size=keep_batch_size,
                 keep_coefficients=keep_coefficients,
