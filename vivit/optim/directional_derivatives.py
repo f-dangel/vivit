@@ -122,15 +122,12 @@ class DirectionalDerivativesComputation:
     def get_extension_hook(
         self,
         param_groups,
-        keep_batch_size=True,
         keep_backpack_buffers=True,
     ):
         """Return hook to be executed right after a BackPACK extension during backprop.
 
         Args:
             param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-            keep_batch_size (bool, optional): Keep batch size for under group id
-                in ``self._lambdas``. Default: ``True``
             keep_backpack_buffers (bool, optional): Keep buffers from used BackPACK
                 extensions during backpropagation. Default: ``True``.
 
@@ -140,7 +137,7 @@ class DirectionalDerivativesComputation:
         hook_store_batch_size = self._get_hook_store_batch_size(param_groups)
 
         param_computation = self.get_param_computation(keep_backpack_buffers)
-        group_hook = self.get_group_hook(keep_batch_size=keep_batch_size)
+        group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
         hook = ParameterGroupsHook.from_functions(
@@ -211,12 +208,8 @@ class DirectionalDerivativesComputation:
 
         return param_computation
 
-    def get_group_hook(self, keep_batch_size):
+    def get_group_hook(self):
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
-
-        Args:
-            keep_batch_size (bool): Keep batch size for under group id
-                in ``self._lambdas``.
 
         Returns:
             function: Function that can be bound to a ``ParameterGroupsHook`` instance.
@@ -227,9 +220,7 @@ class DirectionalDerivativesComputation:
         group_hook_filter_directions = self._group_hook_filter_directions
         group_hook_gammas = self._group_hook_gammas
         group_hook_lambdas = self._group_hook_lambdas
-        group_hook_memory_cleanup = partial(
-            self._group_hook_memory_cleanup, keep_batch_size=keep_batch_size
-        )
+        group_hook_memory_cleanup = self._group_hook_memory_cleanup
 
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
@@ -601,12 +592,7 @@ class DirectionalDerivativesComputation:
         if self._verbose:
             print(f"Group {id(group)}: Store 'lambdas'")
 
-    def _group_hook_memory_cleanup(
-        self,
-        accumulation,
-        group,
-        keep_batch_size,
-    ):
+    def _group_hook_memory_cleanup(self, accumulation, group):
         """Free up buffers which are not required anymore for a group.
 
         Modifies temporary buffers.
@@ -614,15 +600,10 @@ class DirectionalDerivativesComputation:
         Args:
             accumulation (dict): Dictionary with accumulated scalar products.
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
-            keep_batch_size (bool): Keep batch size for under group id
-                in ``self._lambdas``.
         """
-        buffers = ["_gram_mat", "_gram_evals", "_gram_evecs"]
-
-        if not keep_batch_size:
-            buffers.append("_batch_size")
-
         group_id = id(group)
+        buffers = ["_gram_mat", "_gram_evals", "_gram_evecs", "_batch_size"]
+
         for b in buffers:
 
             if self._verbose:

@@ -31,7 +31,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         with backpack(
             *computations.get_extensions(param_groups),
             extension_hook=computations.get_extension_hook(
-                param_groups, keep_backpack_buffers=False, keep_batch_size=False
+                param_groups, keep_backpack_buffers=False
             ),
         ):
             loss.backward()
@@ -61,7 +61,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         with backpack(
             *computations.get_extensions(param_groups),
             extension_hook=computations.get_extension_hook(
-                param_groups, keep_backpack_buffers=False, keep_batch_size=False
+                param_groups, keep_backpack_buffers=False
             ),
         ):
             loss.backward()
