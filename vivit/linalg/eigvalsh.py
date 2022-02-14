@@ -64,7 +64,7 @@ class EigvalshComputation:
 
         Returns:
             BackPACK extension to compute eigenvalues that should be passed to the
-            ``with backpack(...)`` context.
+            :py:class:`with backpack(...) <backpack.backpack>` context.
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
@@ -85,8 +85,9 @@ class EigvalshComputation:
 
         Returns:
             BackPACK extension hook to compute eigenvalues that should be passed to the
-            ``with backpack(...)`` context. The hook computes GGN eigenvalues during
-            backpropagation and stores them internally (under ``self._evals``).
+            :py:class:`with backpack(...) <backpack.backpack>` context. The hook
+            computes GGN eigenvalues during backpropagation and stores them internally
+            (under ``self._evals``).
         """
         self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(

@@ -11,7 +11,8 @@ GGN eigenvalues
 GGN eigenpairs (eigenvalues + eigenvector)
 ------------------------------------------
 
-TODO
+.. autoclass:: vivit.EighComputation
+   :members: __init__, get_extension, get_extension_hook, get_result
 
 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 -----------------------------------------------------------------
