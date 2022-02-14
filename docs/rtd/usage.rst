@@ -16,7 +16,8 @@ Integration with BackPACK
 Starting from a working backward pass with BackPACK, you can integrate ViViT as
 follows:
 
-1. Instantiate the :code:`...Computations` object for your quantity of interest.
+1. Instantiate the :code:`...Computations` object for your quantity of interest
+   (see :ref:`available computations <Computations>`).
 
 2. Use that object to create the extension and extension hook for BackPACK. Pass
    them as arguments to your :code:`with backpack(...)` context.

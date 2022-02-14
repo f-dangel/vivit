@@ -1,6 +1,6 @@
 """Compute GGN eigenvalues and eigenvectors during backpropagation."""
 
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Tuple
 from warnings import warn
 
 from backpack.extensions.backprop_extension import BackpropExtension
@@ -10,39 +10,39 @@ from torch.nn import Module, Parameter
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension, normalize
 from vivit.utils.gram import reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
+from vivit.utils.param_groups import check_key_exists, check_unique_params
 
 
 class EighComputation:
-    """Computes GGN eigenvalues/eigenvectors during backpropagation via ``G = V Vᵀ``.
-
-    This class provides two main functions for usage with BackPACK:
-
-    - ``get_extension`` sets up the extension for a ``with backpack(...)`` context.
-    - ``get_extension_hook`` sets up the hook for a ``with backpack(...)`` context.
-
-    GGN eigenvalues/eigenvectors will be stored as values of the dictionaries
-    ``self._evals``/``self._evecs`` with key corresponding to the parameter group id.
-    """
+    """Provide BackPACK extension and hook to compute GGN eigenpairs."""
 
     def __init__(
         self,
         subsampling: List[int] = None,
         mc_samples: int = 0,
-        verbose=False,
+        verbose: bool = False,
         warn_small_eigvals: float = 1e-4,
     ):
-        """Store indices of samples used for each task.
+        """Specify GGN approximations. Use no approximations by default.
 
-        Assumes that the loss function uses ``reduction = 'mean'``.
+        Note:
+            The loss function must use ``reduction = 'mean'``.
 
         Args:
-            subsampling: Indices of samples used for the computation. Default ``None``
-                uses the entire mini-batch.
-            mc_samples: Number of Monte-Carlo samples to approximate the loss Hessian.
-                Default of ``0`` uses the exact loss Hessian.
-            verbose: Turn on verbose mode. Default: ``False``.
-            warn_small_eigvals: Warns the user about numerical instabilities for small
-                eigenvalues that have smaller magnitude. Default: ``1e-4``.
+            subsampling: Indices of samples used for GGN curvature sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples. Defaults to ``None`` (no curvature sub-sampling).
+            mc_samples: If ``0``, don't Monte-Carlo (MC) approximate the GGN. Otherwise,
+                specifies the number of MC samples used to approximate the
+                backpropagated loss Hessian. Default: ``0`` (no MC approximation).
+            verbose: Turn on verbose mode. If enabled, this will print what's happening
+                during backpropagation to command line (consider it a debugging tool).
+                Defaults to ``False``.
+            warn_small_eigvals: The eigenvector computation breaks down for numerically
+                small eigenvalues close to zero. This variable triggers a user warning
+                when attempting to compute eigenvectors for eigenvalues whose absolute
+                value is smaller. Defaults to ``1e-4``. You can disable the warning by
+                setting it to ``0`` (not recommended).
         """
         self._subsampling = subsampling
         self._mc_samples = mc_samples
@@ -55,46 +55,83 @@ class EighComputation:
         self._evals: Dict[int, Tensor] = {}
         self._evecs: Dict[int, List[Tensor]] = {}
 
-    def get_extension(self) -> BackpropExtension:
-        """Instantiate the extension for a backward pass with BackPACK.
+    def get_result(self, group: Dict) -> Tuple[Tensor, List[Tensor]]:
+        """Return eigenvalues and eigenvectors of a GGN block after the backward pass.
+
+        Args:
+            group: Parameter group that defines the GGN block.
 
         Returns:
-            Extension passed to a ``with backpack(..._)`` context.
+            One-dimensional tensor containing the block's eigenvalues and eigenvectors
+            in parameter list format with leading axis for the eigenvectors.
+
+            Example: Let ``evals, evecs`` denote the returned variables. Let
+            ``group['params'] = [p1, p2]`` consist of two parameters. Then, ``evecs``
+            contains tensors of shape
+            ``[(evals.numel(), *p1.shape), (evals.numel(), *p2.shape)]``. For an
+            eigenvalue ``evals[k]``, the corresponding eigenvector (in list format) is
+            ``[vecs[k] for vecs in evecs]`` and its tensors are of shape
+            ``[p1.shape, p2.shape]``.
+
+        Raises:
+            KeyError: If there are no results for the group.
+        """
+        group_id = id(group)
+        try:
+            return self._evals[group_id], self._evecs[group_id]
+        except KeyError as e:
+            raise KeyError("No results available for this group") from e
+
+    def get_extension(self) -> BackpropExtension:
+        """Instantiate the BackPACK extension for computing GGN eigenpairs.
+
+        Returns:
+            BackPACK extension to compute eigenvalues that should be passed to the
+            :py:class:`with backpack(...) <backpack.backpack>` context.
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
-    def get_extension_hook(
-        self,
-        param_groups: List[Dict],
-        keep_backpack_buffers: bool = False,
-        keep_batch_size: bool = False,
-    ) -> Callable[[Module], None]:
-        """Return hook to be executed right after a BackPACK extension during backprop.
-
-        This hook computes GGN eigenvalues and eigenvectors during backpropagation and
-        stores them under ``self._evals`` and ``self.evecs`` under the group id,
-        respectively.
+    def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
+        """Instantiates the BackPACK extension hook to compute GGN eigenpairs.
 
         Args:
-            param_groups: Parameter group list like for a ``torch.optim.Optimizer``.
-                Each group must have a 'criterion' entry which specifies a
-                ``Callable[[Tensor], List[int]]`` that processes the eigenvalues and
-                returns the indices of those that should be kept for the eigenvector
-                computation.
-            keep_backpack_buffers: Keep buffers from used BackPACK extensions during
-                backpropagation. Default: ``False``.
-            keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``.
+            param_groups: Parameter groups list as required by a
+                ``torch.optim.Optimizer``. Specifies the block structure: Each group
+                must specify the ``'params'`` key which contains a list of the
+                parameters that form a GGN block, and a ``'criterion'`` entry that
+                specifies a filter function to select eigenvalues for the eigenvector
+                computation (details below).
+
+                Examples for ``'params'``:
+
+                - ``[{'params': list(p for p in model.parameters()}]`` uses the full
+                  GGN (one block).
+                - ``[{'params': [p]} for p in model.parameters()]`` uses a per-parameter
+                  block-diagonal GGN approximation.
+
+                The function specified under ``'criterion'`` is a
+                ``Callable[[Tensor], List[int]]``. It receives the eigenvalues (in
+                ascending order) and returns the indices of eigenvalues whose
+                eigenvectors should be computed. Examples:
+
+                - ``{'criterion': lambda evals: [evals.numel() - 1]}`` discards all
+                  eigenvalues except for the largest.
+                - ``{'criterion': lambda evals: list(range(evals.numel()))}`` computes
+                  eigenvectors for all Gram matrix eigenvalues.
 
         Returns:
-            Hook function for a ``with backpack(...)`` context.
+            BackPACK extension hook to compute eigenpairs that should be passed to the
+            :py:class:`with backpack(...) <backpack.backpack>` context. The hook
+            computes GGN eigenpairs during backpropagation and stores them internally
+            (under ``self._evals`` and ``self._evecs``).
         """
+        self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(
             param_groups, self._batch_size, verbose=self._verbose
         )
 
         param_computation = self.get_param_computation()
-        group_hook = self.get_group_hook(keep_backpack_buffers, keep_batch_size)
+        group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
         hook = ParameterGroupsHook.from_functions(
@@ -102,9 +139,7 @@ class EighComputation:
         )
 
         def extension_hook(module: Module):
-            """Extension hook executed right after BackPACK extensions during backprop.
-
-            Chains together all the required computations.
+            """Compute GGN eigenpairs when passed as BackPACK extension hook.
 
             Args:
                 module: Layer on which the hook is executed.
@@ -161,15 +196,9 @@ class EighComputation:
         return accumulate
 
     def get_group_hook(
-        self, keep_backpack_buffers: bool, keep_batch_size: bool
+        self,
     ) -> Callable[[ParameterGroupsHook, None, Dict[str, Any]], None]:
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
-
-        Args:
-            keep_backpack_buffers: Keep BackPACK's buffers during backpropagation.
-                Delete if ``True``.
-            keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Delete if ``True``.
 
         Returns:
             Function that can be bound to a ``ParameterGroupsHook`` instance. Performs
@@ -194,12 +223,10 @@ class EighComputation:
                 group: Parameter group of a ``torch.optim.Optimizer``.
             """
             group_id = id(group)
-            if keep_batch_size:
-                batch_size = batch_sizes[group_id]
-            else:
-                if verbose:
-                    print(f"Group {id(group)}: Delete 'batch_size'")
-                batch_size = batch_sizes.pop(group_id)
+
+            if verbose:
+                print(f"Group {id(group)}: Delete 'batch_size'")
+            batch_size = batch_sizes.pop(group_id)
 
             # Compute & accumulate Gram mat
             gram_mat = 0.0
@@ -234,10 +261,9 @@ class EighComputation:
             for param in group["params"]:
                 group_evecs.append(getattr(param, savefield)["V_mat_prod"](gram_evecs))
 
-                if not keep_backpack_buffers:
-                    if verbose:
-                        print(f"Param {id(param)}: Delete '{savefield}'")
-                    delattr(param, savefield)
+                if verbose:
+                    print(f"Param {id(param)}: Delete '{savefield}'")
+                delattr(param, savefield)
 
             normalize(group_evecs)
 
@@ -245,3 +271,18 @@ class EighComputation:
             evecs[group_id] = group_evecs
 
         return group_hook
+
+    @staticmethod
+    def _check_param_groups(param_groups: List[Dict]):
+        """Check if parameter groups satisfy the required format.
+
+        Each group must specify ``'params'`` and ``'criterion'``. Parameters can
+        only belong to one group.
+
+        Args:
+            param_groups: Parameter groups that define the GGN block structure and
+                the selection criterion for which eigenvalues to compute eigenvectors.
+        """
+        check_key_exists(param_groups, "params")
+        check_key_exists(param_groups, "criterion")
+        check_unique_params(param_groups)

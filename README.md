@@ -1,6 +1,6 @@
 [👷🏗👷🏗 **Coming soon!** Official release with improved docs. Stay tuned. 👷🏗👷🏗]
 
-# ViViT: Curvature access through the generalized Gauss-Newton's low-rank structure
+# <img alt="ViViT" src="./docs/rtd/assets/vivit_logo.svg" height="90"> ViViT: Curvature access through the generalized Gauss-Newton's low-rank structure
 
 [![Python
 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
@@ -11,7 +11,8 @@ the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
 Provided functionality includes computing
 - GGN eigenvalues ([basic
   example](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigvalsh.html#computing-ggn-eigenvalues))
-- GGN eigenpairs (eigenvalues + eigenvector)
+- GGN eigenpairs (eigenvalues + eigenvector, [basic
+  example](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigh.html#computing-ggn-eigenpairs))
 - 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 - Newton steps
 
