@@ -91,12 +91,7 @@ class EighComputation:
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
-    def get_extension_hook(
-        self,
-        param_groups: List[Dict],
-        keep_backpack_buffers: bool = False,
-        keep_batch_size: bool = False,
-    ) -> Callable[[Module], None]:
+    def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
         """Instantiates the BackPACK extension hook to compute GGN eigenpairs.
 
         Args:
@@ -124,11 +119,6 @@ class EighComputation:
                 - ``{'criterion': lambda evals: list(range(evals.numel()))}`` computes
                   eigenvectors for all Gram matrix eigenvalues.
 
-            keep_backpack_buffers: Keep buffers from used BackPACK extensions during
-                backpropagation. Default: ``False``. # noqa: DAR101
-            keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``. # noqa: DAR101
-
         Returns:
             BackPACK extension hook to compute eigenpairs that should be passed to the
             :py:class:`with backpack(...) <backpack.backpack>` context. The hook
@@ -141,7 +131,7 @@ class EighComputation:
         )
 
         param_computation = self.get_param_computation()
-        group_hook = self.get_group_hook(keep_backpack_buffers, keep_batch_size)
+        group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
         hook = ParameterGroupsHook.from_functions(
@@ -149,9 +139,7 @@ class EighComputation:
         )
 
         def extension_hook(module: Module):
-            """Extension hook executed right after BackPACK extensions during backprop.
-
-            Chains together all the required computations.
+            """Compute GGN eigenpairs when passed as BackPACK extension hook.
 
             Args:
                 module: Layer on which the hook is executed.
@@ -208,15 +196,9 @@ class EighComputation:
         return accumulate
 
     def get_group_hook(
-        self, keep_backpack_buffers: bool, keep_batch_size: bool
+        self,
     ) -> Callable[[ParameterGroupsHook, None, Dict[str, Any]], None]:
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
-
-        Args:
-            keep_backpack_buffers: Keep BackPACK's buffers during backpropagation.
-                Delete if ``True``.
-            keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Delete if ``True``.
 
         Returns:
             Function that can be bound to a ``ParameterGroupsHook`` instance. Performs
@@ -241,12 +223,10 @@ class EighComputation:
                 group: Parameter group of a ``torch.optim.Optimizer``.
             """
             group_id = id(group)
-            if keep_batch_size:
-                batch_size = batch_sizes[group_id]
-            else:
-                if verbose:
-                    print(f"Group {id(group)}: Delete 'batch_size'")
-                batch_size = batch_sizes.pop(group_id)
+
+            if verbose:
+                print(f"Group {id(group)}: Delete 'batch_size'")
+            batch_size = batch_sizes.pop(group_id)
 
             # Compute & accumulate Gram mat
             gram_mat = 0.0
@@ -281,10 +261,9 @@ class EighComputation:
             for param in group["params"]:
                 group_evecs.append(getattr(param, savefield)["V_mat_prod"](gram_evecs))
 
-                if not keep_backpack_buffers:
-                    if verbose:
-                        print(f"Param {id(param)}: Delete '{savefield}'")
-                    delattr(param, savefield)
+                if verbose:
+                    print(f"Param {id(param)}: Delete '{savefield}'")
+                delattr(param, savefield)
 
             normalize(group_evecs)
 
