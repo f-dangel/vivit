@@ -16,8 +16,10 @@ from test.problem import ExtensionsTestProblem
 from test.utils import check_sizes_and_values
 from typing import Any, Callable, Dict, Iterator, List, Union
 
-from pytest import mark
+from pytest import mark, raises
 from torch import Tensor, einsum, eye
+
+from vivit.linalg.eigh import EighComputation
 
 
 @mark.parametrize("param_groups_fn", PARAM_GROUPS_FN, ids=PARAM_GROUPS_FN_IDS)
@@ -176,3 +178,11 @@ def pairwise_scalar_products(tensors: List[Tensor], others: List[Tensor]) -> Ten
     return sum(
         einsum("i...,j...->ij", tensor, other) for tensor, other in zip(tensors, others)
     )
+
+
+def test_get_result():
+    """Test retrieving results for an unknown group fails."""
+    group = {"params": []}
+
+    with raises(KeyError):
+        EighComputation().get_result(group)

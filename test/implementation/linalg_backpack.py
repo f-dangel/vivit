@@ -62,4 +62,11 @@ class BackpackLinalgExtensions(BackpackExtensions):
             _, _, loss = self.problem.forward_pass()
             loss.backward()
 
-        return computation._evals, computation._evecs
+        evals, evecs = {}, {}
+
+        for group in param_groups:
+            group_id = id(group)
+            group_evals, group_evecs = computation.get_result(group)
+            evals[group_id], evecs[group_id] = group_evals, group_evecs
+
+        return evals, evecs

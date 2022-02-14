@@ -1,6 +1,6 @@
 """Compute GGN eigenvalues and eigenvectors during backpropagation."""
 
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Tuple
 from warnings import warn
 
 from backpack.extensions.backprop_extension import BackpropExtension
@@ -54,6 +54,33 @@ class EighComputation:
         self._batch_size: Dict[int, int] = {}
         self._evals: Dict[int, Tensor] = {}
         self._evecs: Dict[int, List[Tensor]] = {}
+
+    def get_result(self, group: Dict) -> Tuple[Tensor, List[Tensor]]:
+        """Return eigenvalues and eigenvectors of a GGN block after the backward pass.
+
+        Args:
+            group: Parameter group that defines the GGN block.
+
+        Returns:
+            One-dimensional tensor containing the block's eigenvalues and eigenvectors
+            in parameter list format with leading axis for the eigenvectors.
+
+            Example: Let ``evals, evecs`` denote the returned variables. Let
+            ``group['params'] = [p1, p2]`` consist of two parameters. Then, ``evecs``
+            contains tensors of shape
+            ``[(evals.numel(), *p1.shape), (evals.numel(), *p2.shape)]``. For an
+            eigenvalue ``evals[k]``, the corresponding eigenvector (in list format) is
+            ``[vecs[k] for vecs in evecs]`` and its tensors are of shape
+            ``[p1.shape, p2.shape]``.
+
+        Raises:
+            KeyError: If there are no results for the group.
+        """
+        group_id = id(group)
+        try:
+            return self._evals[group_id], self._evecs[group_id]
+        except KeyError as e:
+            raise KeyError("No results available for this group") from e
 
     def get_extension(self) -> BackpropExtension:
         """Instantiate the extension for a backward pass with BackPACK.
