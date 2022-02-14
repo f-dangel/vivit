@@ -14,36 +14,35 @@ from vivit.utils.param_groups import check_key_exists, check_unique_params
 
 
 class EighComputation:
-    """Computes GGN eigenvalues/eigenvectors during backpropagation via ``G = V Vᵀ``.
-
-    This class provides two main functions for usage with BackPACK:
-
-    - ``get_extension`` sets up the extension for a ``with backpack(...)`` context.
-    - ``get_extension_hook`` sets up the hook for a ``with backpack(...)`` context.
-
-    GGN eigenvalues/eigenvectors will be stored as values of the dictionaries
-    ``self._evals``/``self._evecs`` with key corresponding to the parameter group id.
-    """
+    """Provide BackPACK extension and hook to compute GGN eigenpairs."""
 
     def __init__(
         self,
         subsampling: List[int] = None,
         mc_samples: int = 0,
-        verbose=False,
+        verbose: bool = False,
         warn_small_eigvals: float = 1e-4,
     ):
-        """Store indices of samples used for each task.
+        """Specify GGN approximations. Use no approximations by default.
 
-        Assumes that the loss function uses ``reduction = 'mean'``.
+        Note:
+            The loss function must use ``reduction = 'mean'``.
 
         Args:
-            subsampling: Indices of samples used for the computation. Default ``None``
-                uses the entire mini-batch.
-            mc_samples: Number of Monte-Carlo samples to approximate the loss Hessian.
-                Default of ``0`` uses the exact loss Hessian.
-            verbose: Turn on verbose mode. Default: ``False``.
-            warn_small_eigvals: Warns the user about numerical instabilities for small
-                eigenvalues that have smaller magnitude. Default: ``1e-4``.
+            subsampling: Indices of samples used for GGN curvature sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples. Defaults to ``None`` (no curvature sub-sampling).
+            mc_samples: If ``0``, don't Monte-Carlo (MC) approximate the GGN. Otherwise,
+                specifies the number of MC samples used to approximate the
+                backpropagated loss Hessian. Default: ``0`` (no MC approximation).
+            verbose: Turn on verbose mode. If enabled, this will print what's happening
+                during backpropagation to command line (consider it a debugging tool).
+                Defaults to ``False``.
+            warn_small_eigvals: The eigenvector computation breaks down for numerically
+                small eigenvalues close to zero. This variable triggers a user warning
+                when attempting to compute eigenvectors for eigenvalues whose absolute
+                value is smaller. Defaults to ``1e-4``. You can disable the warning by
+                setting it to ``0`` (not recommended).
         """
         self._subsampling = subsampling
         self._mc_samples = mc_samples
@@ -84,10 +83,11 @@ class EighComputation:
             raise KeyError("No results available for this group") from e
 
     def get_extension(self) -> BackpropExtension:
-        """Instantiate the extension for a backward pass with BackPACK.
+        """Instantiate the BackPACK extension for computing GGN eigenpairs.
 
         Returns:
-            Extension passed to a ``with backpack(..._)`` context.
+            BackPACK extension to compute eigenvalues that should be passed to the
+            :py:class:`with backpack(...) <backpack.backpack>` context.
         """
         return get_vivit_extension(self._subsampling, self._mc_samples)
 
@@ -97,25 +97,43 @@ class EighComputation:
         keep_backpack_buffers: bool = False,
         keep_batch_size: bool = False,
     ) -> Callable[[Module], None]:
-        """Return hook to be executed right after a BackPACK extension during backprop.
-
-        This hook computes GGN eigenvalues and eigenvectors during backpropagation and
-        stores them under ``self._evals`` and ``self.evecs`` under the group id,
-        respectively.
+        """Instantiates the BackPACK extension hook to compute GGN eigenpairs.
 
         Args:
-            param_groups: Parameter group list like for a ``torch.optim.Optimizer``.
-                Each group must have a 'criterion' entry which specifies a
-                ``Callable[[Tensor], List[int]]`` that processes the eigenvalues and
-                returns the indices of those that should be kept for the eigenvector
-                computation.
+            param_groups: Parameter groups list as required by a
+                ``torch.optim.Optimizer``. Specifies the block structure: Each group
+                must specify the ``'params'`` key which contains a list of the
+                parameters that form a GGN block, and a ``'criterion'`` entry that
+                specifies a filter function to select eigenvalues for the eigenvector
+                computation (details below).
+
+                Examples for ``'params'``:
+
+                - ``[{'params': list(p for p in model.parameters()}]`` uses the full
+                  GGN (one block).
+                - ``[{'params': [p]} for p in model.parameters()]`` uses a per-parameter
+                  block-diagonal GGN approximation.
+
+                The function specified under ``'criterion'`` is a
+                ``Callable[[Tensor], List[int]]``. It receives the eigenvalues (in
+                ascending order) and returns the indices of eigenvalues whose
+                eigenvectors should be computed. Examples:
+
+                - ``{'criterion': lambda evals: [evals.numel() - 1]}`` discards all
+                  eigenvalues except for the largest.
+                - ``{'criterion': lambda evals: list(range(evals.numel()))}`` computes
+                  eigenvectors for all Gram matrix eigenvalues.
+
             keep_backpack_buffers: Keep buffers from used BackPACK extensions during
-                backpropagation. Default: ``False``.
+                backpropagation. Default: ``False``. # noqa: DAR101
             keep_batch_size: Keep batch size stored under ``self._batch_size``.
-                Default: ``False``.
+                Default: ``False``. # noqa: DAR101
 
         Returns:
-            Hook function for a ``with backpack(...)`` context.
+            BackPACK extension hook to compute eigenpairs that should be passed to the
+            :py:class:`with backpack(...) <backpack.backpack>` context. The hook
+            computes GGN eigenpairs during backpropagation and stores them internally
+            (under ``self._evals`` and ``self._evecs``).
         """
         self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(
