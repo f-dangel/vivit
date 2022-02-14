@@ -9,6 +9,7 @@ from torch.nn import Module, Parameter
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension
 from vivit.utils.gram import reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
+from vivit.utils.param_groups import check_key_exists, check_unique_params
 
 
 class EigvalshComputation:
@@ -20,7 +21,8 @@ class EigvalshComputation:
         """Specify GGN approximations. Use no approximations by default.
 
         Note:
-            The loss function must use ``reduction = 'mean'``.
+            The loss function must use ``reduction = 'mean'``
+        .
 
         Args:
             subsampling: Indices of samples used for GGN curvature sub-sampling.
@@ -220,42 +222,12 @@ class EigvalshComputation:
 
         return group_hook
 
-    def _check_param_groups(self, param_groups: List[Dict]):
+    @staticmethod
+    def _check_param_groups(param_groups: List[Dict]):
         """Check if parameter groups satisfy the required format.
 
         Args:
             param_groups: Parameter groups that define the GGN block structure.
         """
-        self._check_key_exists(param_groups, "params")
-        self._check_unique_params(param_groups)
-
-    @staticmethod
-    def _check_key_exists(param_groups: List[Dict], key: str):
-        """Check if all groups specify the key.
-
-        Args:
-            param_groups: Parameter groups that define the GGN block structure.
-            key: The key to check for in each group.
-
-        Raises:
-            ValueError: If any group does not specify the key.
-        """
-        if any(key not in group.keys() for group in param_groups):
-            raise ValueError(f"At least one group is not specifying '{key}'.")
-
-    @staticmethod
-    def _check_unique_params(param_groups: List[Dict]):
-        """Check that each parameter is assigned to one group only.
-
-        Args:
-            param_groups: Parameter groups that define the GGN block structure.
-
-        Raises:
-            ValueError: If a parameter occurs in multiple groups.
-        """
-        params_ids = []
-        for group in param_groups:
-            params_ids += [id(p) for p in group["params"]]
-
-        if len(set(params_ids)) != len(params_ids):
-            raise ValueError("At least one parameter is in more than one group.")
+        check_key_exists(param_groups, "params")
+        check_unique_params(param_groups)
