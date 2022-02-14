@@ -32,5 +32,5 @@ sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.
 	:maxdepth: 2
 	:caption: ViViT
 
-	features
+	computations
 	basic_usage/index

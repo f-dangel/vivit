@@ -1,5 +1,5 @@
-Features
-========
+Computations
+============
 
 
 GGN eigenvalues
