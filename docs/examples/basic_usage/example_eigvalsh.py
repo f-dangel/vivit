@@ -72,9 +72,9 @@ param_groups = [group]
 # %%
 # Backward pass with BackPACK
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# We can now build the BackPACK extension and extension hook that will compute GGN,
-# pass them to a :py:class:`with backpack <backpack.backpack>`, and perform the
-# backward pass.
+# We can now build the BackPACK extension and extension hook that will compute GGN
+# eigenvalues, pass them to a :py:class:`with backpack <backpack.backpack>`, and
+# perform the backward pass.
 
 extension = computation.get_extension()
 extension_hook = computation.get_extension_hook(param_groups)
