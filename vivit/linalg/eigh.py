@@ -10,6 +10,7 @@ from torch.nn import Module, Parameter
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension, normalize
 from vivit.utils.gram import reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
+from vivit.utils.param_groups import check_key_exists, check_unique_params
 
 
 class EighComputation:
@@ -89,6 +90,7 @@ class EighComputation:
         Returns:
             Hook function for a ``with backpack(...)`` context.
         """
+        self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(
             param_groups, self._batch_size, verbose=self._verbose
         )
@@ -245,3 +247,18 @@ class EighComputation:
             evecs[group_id] = group_evecs
 
         return group_hook
+
+    @staticmethod
+    def _check_param_groups(param_groups: List[Dict]):
+        """Check if parameter groups satisfy the required format.
+
+        Each group must specify ``'params'`` and ``'criterion'``. Parameters can
+        only belong to one group.
+
+        Args:
+            param_groups: Parameter groups that define the GGN block structure and
+                the selection criterion for which eigenvalues to compute eigenvectors.
+        """
+        check_key_exists(param_groups, "params")
+        check_key_exists(param_groups, "criterion")
+        check_unique_params(param_groups)
