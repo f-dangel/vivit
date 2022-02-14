@@ -21,8 +21,7 @@ class EigvalshComputation:
         """Specify GGN approximations. Use no approximations by default.
 
         Note:
-            The loss function must use ``reduction = 'mean'``
-        .
+            The loss function must use ``reduction = 'mean'``.
 
         Args:
             subsampling: Indices of samples used for GGN curvature sub-sampling.
