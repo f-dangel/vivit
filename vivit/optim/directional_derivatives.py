@@ -33,7 +33,6 @@ class DirectionalDerivativesComputation:
         subsampling_second: Optional[List[int]] = None,
         extension_cls_directions=SqrtGGNExact,
         extension_cls_second=SqrtGGNExact,
-        compute_lambdas: bool = True,
         verbose: bool = False,
     ):
         """Store indices of samples used for each task.
@@ -52,8 +51,6 @@ class DirectionalDerivativesComputation:
             extension_cls_second:
                 BackPACK extension class used to compute second-order directional
                 derivatives.
-            compute_lambdas: Whether to compute second-order
-                directional derivatives. Default: ``True``
             verbose: Turn on verbose mode. Default: ``False``.
         """
         self._extension_cls_first = BatchGrad
@@ -97,13 +94,6 @@ class DirectionalDerivativesComputation:
 
         self._verbose = verbose
 
-        self._compute_lambdas = compute_lambdas
-
-        # safe guards if directional derivatives are not computed
-        if not self._compute_lambdas:
-            assert extension_cls_second == extension_cls_directions
-            assert subsampling_second == subsampling_directions
-
         # filled via side effects during update step computation, keys are group ids
         self._gram_evals = {}
         self._gram_evecs = {}
@@ -135,7 +125,6 @@ class DirectionalDerivativesComputation:
         keep_gram_mat=True,
         keep_gram_evals=True,
         keep_gram_evecs=True,
-        keep_lambdas=True,
         keep_batch_size=True,
         keep_backpack_buffers=True,
     ):
@@ -149,8 +138,6 @@ class DirectionalDerivativesComputation:
                 eigenvalues under group id in ``self._gram_evals``. Default: ``True``
             keep_gram_evecs (bool, optional): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in ``self._gram_evecs``. Default: ``True``
-            keep_lambdas (bool, optional): Keep buffers for second-order directional
-                derivatives under group id in ``self._lambdas``. Default: ``True``
             keep_batch_size (bool, optional): Keep batch size for under group id
                 in ``self._lambdas``. Default: ``True``
             keep_backpack_buffers (bool, optional): Keep buffers from used BackPACK
@@ -166,7 +153,6 @@ class DirectionalDerivativesComputation:
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
-            keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
         )
         accumulate = self.get_accumulate()
@@ -215,8 +201,6 @@ class DirectionalDerivativesComputation:
             keep_backpack_buffers=keep_backpack_buffers,
         )
 
-        compute_lambdas = self._compute_lambdas
-
         def param_computation(self, param):
             """Compute dot products for a parameter used in directional derivatives.
 
@@ -229,13 +213,11 @@ class DirectionalDerivativesComputation:
                 dict: Dictionary with results of the different dot products. Has key
                     ``"V_t_g_n"``.
             """
-            result = {}
-
-            result["V_t_V"] = param_computation_V_t_V(param)
-            result["V_t_g_n"] = param_computation_V_t_g_n(param)
-
-            if compute_lambdas:
-                result["V_n_t_V"] = param_computation_V_n_t_V(param)
+            result = {
+                "V_t_V": param_computation_V_t_V(param),
+                "V_t_g_n": param_computation_V_t_g_n(param),
+                "V_n_t_V": param_computation_V_n_t_V(param),
+            }
 
             param_computation_memory_cleanup(param)
 
@@ -248,7 +230,6 @@ class DirectionalDerivativesComputation:
         keep_gram_mat,
         keep_gram_evals,
         keep_gram_evecs,
-        keep_lambdas,
         keep_batch_size,
     ):
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
@@ -260,8 +241,6 @@ class DirectionalDerivativesComputation:
                 eigenvalues under group id in ``self._gram_evals``.
             keep_gram_evecs (bool): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in ``self._gram_evecs``.
-            keep_lambdas (bool): Keep buffers for second-order directional
-                derivatives under group id in ``self._lambdas``.
             keep_batch_size (bool): Keep batch size for under group id
                 in ``self._lambdas``.
 
@@ -279,11 +258,8 @@ class DirectionalDerivativesComputation:
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
-            keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
         )
-
-        compute_lambdas = self._compute_lambdas
 
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
@@ -297,8 +273,7 @@ class DirectionalDerivativesComputation:
             group_hook_directions(accumulation, group)
             group_hook_filter_directions(accumulation, group)
             group_hook_gammas(accumulation, group)
-            if compute_lambdas:
-                group_hook_lambdas(accumulation, group)
+            group_hook_lambdas(accumulation, group)
             group_hook_memory_cleanup(accumulation, group)
 
         return group_hook
@@ -663,7 +638,6 @@ class DirectionalDerivativesComputation:
         keep_gram_mat,
         keep_gram_evals,
         keep_gram_evecs,
-        keep_lambdas,
         keep_batch_size,
     ):
         """Free up buffers which are not required anymore for a group.
@@ -679,8 +653,6 @@ class DirectionalDerivativesComputation:
                 eigenvalues under group id in ``self._gram_evals``.
             keep_gram_evecs (bool): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in ``self._gram_evecs``.
-            keep_lambdas (bool): Keep buffers for second-order directional
-                derivatives under group id in ``self._lambdas``.
             keep_batch_size (bool): Keep batch size for under group id
                 in ``self._lambdas``.
         """
@@ -692,8 +664,6 @@ class DirectionalDerivativesComputation:
             buffers.append("_gram_evals")
         if not keep_gram_evecs:
             buffers.append("_gram_evecs")
-        if not keep_lambdas and self._compute_lambdas:
-            buffers.append("_lambdas")
         if not keep_batch_size:
             buffers.append("_batch_size")
 

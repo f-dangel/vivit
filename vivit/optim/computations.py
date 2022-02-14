@@ -84,7 +84,6 @@ class BaseComputations:
         keep_gram_mat=True,
         keep_gram_evals=True,
         keep_gram_evecs=True,
-        keep_lambdas=True,
         keep_batch_size=True,
         keep_coefficients: bool = True,
         keep_newton_step=True,
@@ -104,9 +103,6 @@ class BaseComputations:
                 Default: ``True``
             keep_gram_evecs (bool, optional): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in ``self._gram_computation._gram_evecs``.
-                Default: ``True``
-            keep_lambdas (bool, optional): Keep buffers for second-order directional
-                derivatives under group id in ``self._gram_computation._lambdas``.
                 Default: ``True``
             keep_batch_size (bool, optional): Keep batch size for under group id
                 in ``self._gram_computation._lambdas``. Default: ``True``
@@ -133,7 +129,6 @@ class BaseComputations:
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
-            keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
             keep_coefficients=keep_coefficients,
             keep_newton_step=keep_newton_step,
@@ -182,7 +177,6 @@ class BaseComputations:
         keep_gram_mat,
         keep_gram_evals,
         keep_gram_evecs,
-        keep_lambdas,
         keep_batch_size,
         keep_coefficients: bool,
         keep_newton_step,
@@ -200,8 +194,6 @@ class BaseComputations:
                 eigenvalues under group id in ``self._gram_computation._gram_evals``.
             keep_gram_evecs (bool): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in ``self._gram_computation._gram_evecs``.
-            keep_lambdas (bool): Keep buffers for second-order directional
-                derivatives under group id in ``self._gram_computation._lambdas``.
             keep_batch_size (bool): Keep batch size for under group id
                 in ``self._gram_computation._lambdas``. Default: ``True``
             keep_coefficients: Keep Newton step coefficients under group id in
@@ -220,7 +212,6 @@ class BaseComputations:
             keep_gram_mat=True,
             keep_gram_evals=True,
             keep_gram_evecs=True,
-            keep_lambdas=True,
             keep_batch_size=True,
         )
         group_hook_newton_step = partial(
@@ -234,7 +225,6 @@ class BaseComputations:
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
-            keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
             keep_coefficients=keep_coefficients,
             keep_newton_step=keep_newton_step,
@@ -275,7 +265,6 @@ class BaseComputations:
         keep_gram_mat,
         keep_gram_evals,
         keep_gram_evecs,
-        keep_lambdas,
         keep_batch_size,
         keep_coefficients: bool,
         keep_newton_step,
@@ -294,8 +283,6 @@ class BaseComputations:
                 eigenvalues under group id in ``self._gram_computation._gram_evals``.
             keep_gram_evecs (bool): Keep buffers for filtered Gram matrix
                 eigenvectors under group id in ``self._gram_computation._gram_evecs``.
-            keep_lambdas (bool): Keep buffers for second-order directional
-                derivatives under group id in ``self._gram_computation._lambdas``.
             keep_batch_size (bool): Keep batch size for under group id
                 in ``self._gram_computation._lambdas``. Default: ``True``
             keep_coefficients: Keep Newton step coefficients under group id in
@@ -311,7 +298,6 @@ class BaseComputations:
             keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
-            keep_lambdas=keep_lambdas,
             keep_batch_size=keep_batch_size,
         )
 

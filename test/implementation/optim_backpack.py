@@ -41,7 +41,6 @@ class BackpackOptimExtensions(BackpackExtensions):
                 keep_gram_mat=False,
                 keep_gram_evecs=False,
                 keep_batch_size=False,
-                keep_lambdas=False,
                 keep_gram_evals=False,
             ),
         ):
@@ -77,7 +76,6 @@ class BackpackOptimExtensions(BackpackExtensions):
                 keep_gram_mat=False,
                 keep_gram_evecs=False,
                 keep_batch_size=False,
-                keep_lambdas=True,
                 keep_gram_evals=False,
             ),
         ):
@@ -126,7 +124,6 @@ class BackpackOptimExtensions(BackpackExtensions):
                 keep_gram_mat=False,
                 keep_gram_evals=False,
                 keep_gram_evecs=False,
-                keep_lambdas=False,
                 keep_batch_size=False,
                 keep_coefficients=False,
                 keep_newton_step=False,
@@ -203,7 +200,6 @@ class BackpackOptimExtensions(BackpackExtensions):
                     keep_gram_mat=False,
                     keep_gram_evals=False,
                     keep_gram_evecs=False,
-                    keep_lambdas=False,
                     keep_batch_size=False,
                     keep_coefficients=False,
                     keep_newton_step=False,
