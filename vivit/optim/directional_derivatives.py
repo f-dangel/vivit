@@ -2,7 +2,6 @@
 
 import math
 import warnings
-from functools import partial
 from typing import List, Optional
 
 import torch
@@ -119,24 +118,18 @@ class DirectionalDerivativesComputation:
 
         return extensions
 
-    def get_extension_hook(
-        self,
-        param_groups,
-        keep_backpack_buffers=True,
-    ):
+    def get_extension_hook(self, param_groups):
         """Return hook to be executed right after a BackPACK extension during backprop.
 
         Args:
             param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-            keep_backpack_buffers (bool, optional): Keep buffers from used BackPACK
-                extensions during backpropagation. Default: ``True``.
 
         Returns:
             ParameterGroupsHook: Hook that can be handed into a ``with backpack(...)``.
         """
         hook_store_batch_size = self._get_hook_store_batch_size(param_groups)
 
-        param_computation = self.get_param_computation(keep_backpack_buffers)
+        param_computation = self.get_param_computation()
         group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
@@ -164,12 +157,8 @@ class DirectionalDerivativesComputation:
 
         return extension_hook
 
-    def get_param_computation(self, keep_backpack_buffers):
+    def get_param_computation(self):
         """Set up the ``param_computation`` function of the ``ParameterGroupsHook``.
-
-        Args:
-            keep_backpack_buffers (bool): Keep buffers from used BackPACK extensions
-                during backpropagation.
 
         Returns:
             function: Function that can be bound to a ``ParameterGroupsHook`` instance.
@@ -179,10 +168,7 @@ class DirectionalDerivativesComputation:
         param_computation_V_t_V = self._param_computation_V_t_V
         param_computation_V_t_g_n = self._param_computation_V_t_g_n
         param_computation_V_n_t_V = self._param_computation_V_n_t_V
-        param_computation_memory_cleanup = partial(
-            self._param_computation_memory_cleanup,
-            keep_backpack_buffers=keep_backpack_buffers,
-        )
+        param_computation_memory_cleanup = self._param_computation_memory_cleanup
 
         def param_computation(self, param):
             """Compute dot products for a parameter used in directional derivatives.
@@ -412,22 +398,17 @@ class DirectionalDerivativesComputation:
 
         return tensors
 
-    def _param_computation_memory_cleanup(self, param, keep_backpack_buffers):
+    def _param_computation_memory_cleanup(self, param):
         """Free buffers in a parameter that are not required anymore.
 
         Args:
             param (torch.Tensor): Parameter of a neural net.
-            keep_backpack_buffers (bool): Keep buffers from used BackPACK
-                extensions during backpropagation.
         """
-        if keep_backpack_buffers:
-            savefields = []
-        else:
-            savefields = {
-                self._savefield_directions,
-                self._savefield_first,
-                self._savefield_second,
-            }
+        savefields = {
+            self._savefield_directions,
+            self._savefield_first,
+            self._savefield_second,
+        }
 
         for savefield in savefields:
             delattr(param, savefield)
