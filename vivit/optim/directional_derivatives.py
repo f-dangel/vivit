@@ -101,11 +101,8 @@ class DirectionalDerivativesComputation:
         self._lambdas = {}
         self._batch_size = {}
 
-    def get_extensions(self, param_groups):
+    def get_extensions(self):
         """Return the instantiated BackPACK extensions required in the backward pass.
-
-        Args:
-            param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
 
         Returns:
             [backpack.extensions.backprop_extension.BackpropExtension]: List of

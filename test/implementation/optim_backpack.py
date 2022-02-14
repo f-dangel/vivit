@@ -29,7 +29,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         _, _, loss = self.problem.forward_pass()
 
         with backpack(
-            *computations.get_extensions(param_groups),
+            *computations.get_extensions(),
             extension_hook=computations.get_extension_hook(param_groups),
         ):
             loss.backward()
@@ -57,7 +57,7 @@ class BackpackOptimExtensions(BackpackExtensions):
         _, _, loss = self.problem.forward_pass()
 
         with backpack(
-            *computations.get_extensions(param_groups),
+            *computations.get_extensions(),
             extension_hook=computations.get_extension_hook(param_groups),
         ):
             loss.backward()
