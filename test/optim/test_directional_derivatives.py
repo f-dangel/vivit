@@ -1,4 +1,4 @@
-"""Test ``vivit.optim.gram_computations``."""
+"""Test ``vivit.optim.directional_derivatives``."""
 
 from test.implementation.optim_autograd import AutogradOptimExtensions
 from test.implementation.optim_backpack import BackpackOptimExtensions

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from backpack import backpack
 from torch import Tensor
 
-from vivit.optim import GramComputations
+from vivit.optim import DirectionalDerivativesComputation
 from vivit.optim.computations import BaseComputations
 from vivit.optim.damped_newton import DampedNewton
 from vivit.optim.damping import _DirectionalCoefficients
@@ -26,7 +26,7 @@ class BackpackOptimExtensions(BackpackExtensions):
             subsampling_first ([int], optional): Sample indices used for individual
                 gradients.
         """
-        computations = GramComputations(
+        computations = DirectionalDerivativesComputation(
             subsampling_directions=subsampling_directions,
             subsampling_first=subsampling_first,
         )
@@ -63,7 +63,7 @@ class BackpackOptimExtensions(BackpackExtensions):
             subsampling_second ([int], optional): Sample indices used for individual
                 curvature matrices.
         """
-        computations = GramComputations(
+        computations = DirectionalDerivativesComputation(
             subsampling_directions=subsampling_directions,
             subsampling_second=subsampling_second,
         )

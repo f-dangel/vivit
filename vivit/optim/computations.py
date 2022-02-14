@@ -6,7 +6,7 @@ from functools import partial
 from backpack.extensions import SqrtGGNExact
 
 from vivit.optim.damping import _DirectionalCoefficients
-from vivit.optim.gram_computations import GramComputations
+from vivit.optim.directional_derivatives import DirectionalDerivativesComputation
 from vivit.utils.ggn import V_mat_prod
 from vivit.utils.hooks import ParameterGroupsHook
 
@@ -50,7 +50,7 @@ class BaseComputations:
                 derivatives.
             verbose (bool, optional): Turn on verbose mode. Default: ``False``.
         """
-        self._gram_computation = GramComputations(
+        self._gram_computation = DirectionalDerivativesComputation(
             subsampling_directions=subsampling_directions,
             subsampling_first=subsampling_first,
             subsampling_second=subsampling_second,

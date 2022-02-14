@@ -13,7 +13,7 @@ from vivit.utils.hooks import ParameterGroupsHook
 from vivit.utils.subsampling import is_subset, merge_extensions, sample_output_mapping
 
 
-class GramComputations:
+class DirectionalDerivativesComputation:
     """Compute directions ``{(λₖ, ẽₖ)}``, slopes ``γ[n,k]`` & curvatures ``λ[n,k]``.
 
     Different samples may be assigned to the three steps. The computation happens

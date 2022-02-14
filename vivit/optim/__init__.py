@@ -3,11 +3,11 @@
 from vivit.optim.computations import BaseComputations
 from vivit.optim.damped_newton import DampedNewton
 from vivit.optim.damping import ConstantDamping
-from vivit.optim.gram_computations import GramComputations
+from vivit.optim.directional_derivatives import DirectionalDerivativesComputation
 
 __all__ = [
     "DampedNewton",
     "ConstantDamping",
     "BaseComputations",
-    "GramComputations",
+    "DirectionalDerivativesComputation",
 ]
