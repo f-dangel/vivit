@@ -33,7 +33,6 @@ class BackpackOptimExtensions(BackpackExtensions):
             extension_hook=computations.get_extension_hook(
                 param_groups,
                 keep_backpack_buffers=False,
-                keep_gram_mat=False,
                 keep_gram_evecs=False,
                 keep_batch_size=False,
                 keep_gram_evals=False,
@@ -68,7 +67,6 @@ class BackpackOptimExtensions(BackpackExtensions):
             extension_hook=computations.get_extension_hook(
                 param_groups,
                 keep_backpack_buffers=False,
-                keep_gram_mat=False,
                 keep_gram_evecs=False,
                 keep_batch_size=False,
                 keep_gram_evals=False,

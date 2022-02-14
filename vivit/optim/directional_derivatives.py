@@ -122,7 +122,6 @@ class DirectionalDerivativesComputation:
     def get_extension_hook(
         self,
         param_groups,
-        keep_gram_mat=True,
         keep_gram_evals=True,
         keep_gram_evecs=True,
         keep_batch_size=True,
@@ -132,8 +131,6 @@ class DirectionalDerivativesComputation:
 
         Args:
             param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-            keep_gram_mat (bool, optional): Keep buffers for Gram matrix under group id
-                in ``self._gram_mat``. Default: ``True``
             keep_gram_evals (bool, optional): Keep buffers for filtered Gram matrix
                 eigenvalues under group id in ``self._gram_evals``. Default: ``True``
             keep_gram_evecs (bool, optional): Keep buffers for filtered Gram matrix
@@ -150,7 +147,6 @@ class DirectionalDerivativesComputation:
 
         param_computation = self.get_param_computation(keep_backpack_buffers)
         group_hook = self.get_group_hook(
-            keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
             keep_batch_size=keep_batch_size,
@@ -227,7 +223,6 @@ class DirectionalDerivativesComputation:
 
     def get_group_hook(
         self,
-        keep_gram_mat,
         keep_gram_evals,
         keep_gram_evecs,
         keep_batch_size,
@@ -235,8 +230,6 @@ class DirectionalDerivativesComputation:
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
 
         Args:
-            keep_gram_mat (bool): Keep buffers for Gram matrix under group id
-                in ``self._gram_mat``.
             keep_gram_evals (bool): Keep buffers for filtered Gram matrix
                 eigenvalues under group id in ``self._gram_evals``.
             keep_gram_evecs (bool): Keep buffers for filtered Gram matrix
@@ -255,7 +248,6 @@ class DirectionalDerivativesComputation:
         group_hook_lambdas = self._group_hook_lambdas
         group_hook_memory_cleanup = partial(
             self._group_hook_memory_cleanup,
-            keep_gram_mat=keep_gram_mat,
             keep_gram_evals=keep_gram_evals,
             keep_gram_evecs=keep_gram_evecs,
             keep_batch_size=keep_batch_size,
@@ -635,7 +627,6 @@ class DirectionalDerivativesComputation:
         self,
         accumulation,
         group,
-        keep_gram_mat,
         keep_gram_evals,
         keep_gram_evecs,
         keep_batch_size,
@@ -647,8 +638,6 @@ class DirectionalDerivativesComputation:
         Args:
             accumulation (dict): Dictionary with accumulated scalar products.
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
-            keep_gram_mat (bool): Keep buffers for Gram matrix under group id
-                in ``self._gram_mat``.
             keep_gram_evals (bool): Keep buffers for filtered Gram matrix
                 eigenvalues under group id in ``self._gram_evals``.
             keep_gram_evecs (bool): Keep buffers for filtered Gram matrix
@@ -658,8 +647,7 @@ class DirectionalDerivativesComputation:
         """
         buffers = []
 
-        if not keep_gram_mat:
-            buffers.append("_gram_mat")
+        buffers.append("_gram_mat")
         if not keep_gram_evals:
             buffers.append("_gram_evals")
         if not keep_gram_evecs:
