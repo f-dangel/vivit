@@ -11,7 +11,8 @@ the generalized Gauss-Newton (GGN) matrix based on its low-rank structure.
 Provided functionality includes computing
 - GGN eigenvalues ([basic
   example](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigvalsh.html#computing-ggn-eigenvalues))
-- GGN eigenpairs (eigenvalues + eigenvector)
+- GGN eigenpairs (eigenvalues + eigenvector, [basic
+  example](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigh.html#computing-ggn-eigenpairs))
 - 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 - Newton steps
 

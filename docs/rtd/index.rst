@@ -13,7 +13,8 @@ It is designed to be used with `BackPACK
 
 - GGN eigenvalues (:ref:`basic example <Computing GGN eigenvalues>`)
 
-- GGN eigenpairs (eigenvalues + eigenvector)
+- GGN eigenpairs (eigenvalues + eigenvector, :ref:`basic example <Computing GGN
+  eigenpairs>`)
 
 - 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 
