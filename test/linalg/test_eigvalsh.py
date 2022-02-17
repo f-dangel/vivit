@@ -39,9 +39,8 @@ def test_ggn_eigvalsh(
     """
     problem.set_up()
 
-    param_groups = param_groups_fn(problem.model.named_parameters())
-    for group in param_groups:
-        group["criterion"] = keep_all
+    # TODO Remove dependency on 'criterion' from autograd implementation
+    param_groups = param_groups_fn(problem.model.named_parameters(), keep_all)
 
     backpack_result = BackpackLinalgExtensions(problem).eigvalsh_ggn(
         param_groups, subsampling

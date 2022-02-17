@@ -8,22 +8,18 @@ from vivit.optim import DirectionalDerivativesComputation
 
 
 class BackpackOptimExtensions(BackpackExtensions):
-    def gammas_ggn(
-        self, param_groups, subsampling_directions=None, subsampling_first=None
+    def directional_derivatives(
+        self,
+        param_groups,
+        subsampling_grad=None,
+        subsampling_ggn=None,
+        mc_samples_ggn=0,
     ):
-        """First-order directional derivatives along leading GGN eigenvectors via
-        ``vivit.optim.computations``.
-
-        Args:
-            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
-            subsampling_directions ([int] or None): Indices of samples used to compute
-                Newton directions. If ``None``, all samples in the batch will be used.
-            subsampling_first ([int], optional): Sample indices used for individual
-                gradients.
-        """
+        """Compute 1st and 2nd-order directional derivatives along GGN eigenvectors."""
         computations = DirectionalDerivativesComputation(
-            subsampling_directions=subsampling_directions,
-            subsampling_first=subsampling_first,
+            subsampling_grad=subsampling_grad,
+            subsampling_ggn=subsampling_ggn,
+            mc_samples_ggn=mc_samples_ggn,
         )
 
         _, _, loss = self.problem.forward_pass()
@@ -34,32 +30,6 @@ class BackpackOptimExtensions(BackpackExtensions):
         ):
             loss.backward()
 
-        return [computations._gammas[id(group)] for group in param_groups]
-
-    def lambdas_ggn(
-        self, param_groups, subsampling_directions=None, subsampling_second=None
-    ):
-        """Second-order directional derivatives along leading GGN eigenvectors via
-        ``vivit.optim.computations``.
-
-        Args:
-            param_groups ([dict]): Parameter groups like for ``torch.nn.Optimizer``s.
-            subsampling_directions ([int] or None): Indices of samples used to compute
-                Newton directions. If ``None``, all samples in the batch will be used.
-            subsampling_second ([int], optional): Sample indices used for individual
-                curvature matrices.
-        """
-        computations = DirectionalDerivativesComputation(
-            subsampling_directions=subsampling_directions,
-            subsampling_second=subsampling_second,
-        )
-
-        _, _, loss = self.problem.forward_pass()
-
-        with backpack(
-            *computations.get_extensions(),
-            extension_hook=computations.get_extension_hook(param_groups),
-        ):
-            loss.backward()
-
-        return [computations._lambdas[id(group)] for group in param_groups]
+        return [computations._gammas[id(group)] for group in param_groups], [
+            computations._lambdas[id(group)] for group in param_groups
+        ]

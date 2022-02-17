@@ -2,10 +2,12 @@
 
 import math
 import warnings
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 
 import torch
-from backpack.extensions import BatchGrad, SqrtGGNExact
+from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
+from backpack.extensions.backprop_extension import BackpropExtension
+from torch.nn import Module
 
 from vivit.utils.eig import stable_symeig
 from vivit.utils.gram import partial_contract, reshape_as_square
@@ -14,44 +16,51 @@ from vivit.utils.subsampling import is_subset, merge_extensions, sample_output_m
 
 
 class DirectionalDerivativesComputation:
-    """Compute directions ``{(λₖ, ẽₖ)}``, slopes ``γ[n,k]`` & curvatures ``λ[n,k]``.
+    """Provide BackPACK extension and hook for 1ˢᵗ/2ⁿᵈ-order directional derivatives.
 
-    Different samples may be assigned to the three steps. The computation happens
-    during backpropagation via extension hooks and allows the used buffers to be
-    discarded immediately afterwards.
-
-    - ``{(λₖ, ẽₖ)}``: Directions in Gram space with associated eigenvalues.
-    - ``γ[n,k]``: 1st-order directional derivative along ``eₖ`` (implied by ``ẽₖ``).
-    - ``λ[n,k]``: 2nd-order directional derivative along ``eₖ`` (implied by ``ẽₖ``).
+    The directions are given by the GGN eigenvectors. First-order directional
+    derivatives are denoted ``γ``, second-order directional derivatives as ``λ``.
     """
 
     def __init__(
         self,
-        subsampling_directions: Optional[List[int]] = None,
-        subsampling_first: Optional[List[int]] = None,
-        subsampling_second: Optional[List[int]] = None,
-        extension_cls_directions=SqrtGGNExact,
-        extension_cls_second=SqrtGGNExact,
-        verbose: bool = False,
+        subsampling_grad: Optional[List[int]] = None,
+        subsampling_ggn: Optional[List[int]] = None,
+        mc_samples_ggn: Optional[int] = 0,
+        verbose: Optional[bool] = False,
     ):
-        """Store indices of samples used for each task.
+        """Specify GGN and gradient approximations. Use no approximations by default.
 
         Args:
-            subsampling_directions: Indices of samples used to compute
-                Newton directions. If ``None``, all samples in the batch will be used.
-            subsampling_first: Indices of samples used to compute first-
-                order directional derivatives along the Newton directions. If ``None``,
-                all samples in the batch will be used.
-            subsampling_second: Indices of samples used to compute
-                second-order directional derivatives along the Newton directions. If
-                ``None``, all samples in the batch will be used.
-            extension_cls_directions:
-                BackPACK extension class used to compute descent directions.
-            extension_cls_second:
-                BackPACK extension class used to compute second-order directional
-                derivatives.
-            verbose: Turn on verbose mode. Default: ``False``.
+            subsampling_grad: Indices of samples used for gradient sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples to compute directional gradients . Defaults to ``None`` (no
+                gradient sub-sampling).
+            subsampling_ggn: Indices of samples used for GGN curvature sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples to compute directions and directional curvatures. Defaults to
+                ``None`` (no curvature sub-sampling).
+            mc_samples_ggn: If ``0``, don't Monte-Carlo (MC) approximate the GGN
+                (using the same samples to compute the directions and directional
+                curvatures). Otherwise, specifies the number of MC samples used to
+                approximate the backpropagated loss Hessian. Default: ``0`` (no MC
+                approximation).
+            verbose: Turn on verbose mode. If enabled, this will print what's happening
+                during backpropagation to command line (consider it a debugging tool).
+                Defaults to ``False``.
         """
+        subsampling_directions = subsampling_ggn
+        subsampling_first = subsampling_grad
+        subsampling_second = subsampling_ggn
+
+        if mc_samples_ggn != 0:
+            assert mc_samples_ggn == 1
+            extension_cls_directions = SqrtGGNMC
+            extension_cls_second = SqrtGGNMC
+        else:
+            extension_cls_directions = SqrtGGNExact
+            extension_cls_second = SqrtGGNExact
+
         self._extension_cls_first = BatchGrad
         self._savefield_first = self._extension_cls_first().savefield
         self._subsampling_first = subsampling_first
@@ -101,28 +110,53 @@ class DirectionalDerivativesComputation:
         self._lambdas = {}
         self._batch_size = {}
 
-    def get_extensions(self):
-        """Return the instantiated BackPACK extensions required in the backward pass.
+    def get_extensions(self) -> List[BackpropExtension]:
+        """Instantiate the BackPACK extensions to compute GGN directional derivatives.
 
         Returns:
-            [backpack.extensions.backprop_extension.BackpropExtension]: List of
-                extensions that can be handed into a ``with backpack(...)`` context.
+            BackPACK extensions, to compute directional 1ˢᵗ- and 2ⁿᵈ-order directional
+            derivatives along GGN eigenvectors, that should be extracted and passed to
+            the :py:class:`with backpack(...) <backpack.backpack>` context.
         """
-        extensions = [
+        return [
             ext_cls(subsampling=subsampling)
             for ext_cls, subsampling in self._merged_extensions.items()
         ]
 
-        return extensions
-
-    def get_extension_hook(self, param_groups):
-        """Return hook to be executed right after a BackPACK extension during backprop.
+    def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
+        """Instantiate BackPACK extension hook to compute GGN directional derivatives.
 
         Args:
-            param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
+            param_groups: Parameter groups list as required by a
+                ``torch.optim.Optimizer``. Specifies the block structure: Each group
+                must specify the ``'params'`` key which contains a list of the
+                parameters that form a GGN block, and a ``'criterion'`` entry that
+                specifies a filter function to select eigenvalues as directions along
+                which to compute directional derivatives (details below).
+
+                Examples for ``'params'``:
+
+                - ``[{'params': list(p for p in model.parameters()}]`` uses the full
+                  GGN (one block).
+                - ``[{'params': [p]} for p in model.parameters()]`` uses a per-parameter
+                  block-diagonal GGN approximation.
+
+                The function specified under ``'criterion'`` is a
+                ``Callable[[Tensor], List[int]]``. It receives the eigenvalues (in
+                ascending order) and returns the indices of eigenvalues whose
+                eigenvectors should be used as directions to evaluate directional
+                derivatives. Examples:
+
+                - ``{'criterion': lambda evals: [evals.numel() - 1]}`` discards all
+                  directions except for the leading eigenvector.
+                - ``{'criterion': lambda evals: list(range(evals.numel()))}`` computes
+                  directional derivatives along all Gram matrix eigenvectors.
 
         Returns:
-            ParameterGroupsHook: Hook that can be handed into a ``with backpack(...)``.
+            BackPACK extension hook, to compute directional derivatives, that should be
+            passed to the :py:class:`with backpack(...) <backpack.backpack>` context.
+            The hook computes GGN directional derivatives during backpropagation and
+            stores them internally (under ``self._gammas`` and ``self._lambdas``).
         """
         hook_store_batch_size = self._get_hook_store_batch_size(param_groups)
 
