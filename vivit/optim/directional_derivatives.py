@@ -70,9 +70,6 @@ class DirectionalDerivativesComputation:
         self._verbose = verbose
 
         # filled via side effects during update step computation, keys are group ids
-        self._gram_evals = {}
-        self._gram_evecs = {}
-        self._gram_mat = {}
         self._gammas = {}
         self._lambdas = {}
         self._batch_size = {}
@@ -384,12 +381,6 @@ class DirectionalDerivativesComputation:
     def _group_hook_directions(self, accumulation, group):
         """Evaluate and store directions of quadratic model in the Gram space.
 
-        Sets the following entries under the id of ``group``:
-
-        - In ``self._gram_evals``: Eigenvalues, sorted in ascending order.
-        - In ``self._gram_evecs``: Normalized eigenvectors, stacked column-wise.
-        - In ``self._gram_mat``: The Gram matrix ``Vᵀ V``.
-
         Args:
             accumulation (dict): Dictionary with accumulated scalar products.
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
@@ -408,9 +399,9 @@ class DirectionalDerivativesComputation:
         )
 
         # save
-        self._gram_mat[group_id] = gram_mat
-        self._gram_evals[group_id] = gram_evals
-        self._gram_evecs[group_id] = gram_evecs
+        accumulation["gram_mat"] = gram_mat
+        accumulation["gram_evals"] = gram_evals
+        accumulation["gram_evecs"] = gram_evecs
 
         if self._verbose:
             print(f"Group {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'")
@@ -418,25 +409,23 @@ class DirectionalDerivativesComputation:
     def _group_hook_filter_directions(self, accumulation, group):
         """Filter Gram directions depending on their eigenvalues.
 
-        Modifies the group entries in ``self._gram_evals`` and ``self._gram_evecs``.
-
         Args:
             accumulation (dict): Dictionary with accumulated scalar products.
             group (dict): Parameter group.
         """
         group_id = id(group)
 
-        evals = self._gram_evals[group_id]
-        evecs = self._gram_evecs[group_id]
+        evals = accumulation["gram_evals"]
+        evecs = accumulation["gram_evecs"]
 
         keep = group["criterion"](evals)
 
-        self._gram_evals[group_id] = evals[keep]
-        self._gram_evecs[group_id] = evecs[:, keep]
+        accumulation["gram_evals"] = evals[keep]
+        accumulation["gram_evecs"] = evecs[:, keep]
 
         if self._verbose:
             before, after = len(evals), len(keep)
-            print(f"Group {id(group)}: Filter directions ({before} → {after})")
+            print(f"Group {group_id}: Filter directions ({before} → {after})")
 
     def _group_hook_gammas(self, accumulation, group):
         """Evaluate and store first-order directional derivatives ``γ[n, d]``.
@@ -459,7 +448,6 @@ class DirectionalDerivativesComputation:
         # compensate subsampling scale
         if self._subsampling_ggn is not None:
             N_dir = len(self._subsampling_ggn)
-            N = self._batch_size[group_id]
             V_t_g_n *= math.sqrt(N / N_dir)
 
         # NOTE Flipping the order (g_n_t_V) may be more efficient
@@ -468,8 +456,8 @@ class DirectionalDerivativesComputation:
         )  # only applies to GGN and GGN-MC
 
         gammas = (
-            torch.einsum("in,id->nd", V_t_g_n, self._gram_evecs[group_id])
-            / self._gram_evals[group_id].sqrt()
+            torch.einsum("in,id->nd", V_t_g_n, accumulation["gram_evecs"])
+            / accumulation["gram_evals"].sqrt()
         )
 
         self._gammas[group_id] = gammas
@@ -490,9 +478,9 @@ class DirectionalDerivativesComputation:
         """
         group_id = id(group)
 
-        gram_evals = self._gram_evals[group_id]
-        gram_evecs = self._gram_evecs[group_id]
-        gram_mat = self._gram_mat[group_id]
+        gram_evals = accumulation["gram_evals"]
+        gram_evecs = accumulation["gram_evecs"]
+        gram_mat = accumulation["gram_mat"]
 
         C_dir, N_dir = gram_mat.shape[:2]
 
@@ -523,7 +511,7 @@ class DirectionalDerivativesComputation:
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
         """
         group_id = id(group)
-        buffers = ["_gram_mat", "_gram_evals", "_gram_evecs", "_batch_size"]
+        buffers = ["_batch_size"]
 
         for b in buffers:
 
