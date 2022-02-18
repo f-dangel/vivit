@@ -13,7 +13,7 @@ from torch import Tensor
 PROBLEMS = PROBLEMS_REDUCTION_MEAN
 IDS = IDS_REDUCTION_MEAN
 
-SUBSAMPLINGS = [None, [0, 0, 1, 0, 1]]
+SUBSAMPLINGS = [None, [1, 0]]
 SUBSAMPLINGS_IDS = [f"subsampling={sub}" for sub in SUBSAMPLINGS]
 
 PARAM_GROUPS_FN = PARAM_BLOCKS_FN

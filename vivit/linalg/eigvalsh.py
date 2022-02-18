@@ -7,9 +7,13 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension
+from vivit.utils.checks import (
+    check_key_exists,
+    check_subsampling_unique,
+    check_unique_params,
+)
 from vivit.utils.gram import reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
-from vivit.utils.param_groups import check_key_exists, check_unique_params
 
 
 class EigvalshComputation:
@@ -34,6 +38,8 @@ class EigvalshComputation:
                 during backpropagation to command line (consider it a debugging tool).
                 Defaults to ``False``.
         """
+        check_subsampling_unique(subsampling)
+
         self._subsampling = subsampling
         self._mc_samples = mc_samples
         self._verbose = verbose

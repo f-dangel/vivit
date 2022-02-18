@@ -1,6 +1,6 @@
 """Utility functions to deal with parameter groups."""
 
-from typing import Dict, List
+from typing import Dict, List, Union
 
 
 def check_key_exists(param_groups: List[Dict], key: str):
@@ -32,3 +32,18 @@ def check_unique_params(param_groups: List[Dict]):
 
     if len(set(params_ids)) != len(params_ids):
         raise ValueError("At least one parameter is in more than one group.")
+
+
+def check_subsampling_unique(subsampling: Union[None, List[int]]):
+    """Check that sub-sampling contains unique sample indices.
+
+    Args:
+        subsampling: Indices of active samples used for a computation. ``None``
+            uses the full mini-batch.
+
+    Raises:
+        ValueError: If the same index occurs more than once.
+    """
+    if subsampling is not None:
+        if len(set(subsampling)) != len(subsampling):
+            raise ValueError("Detected repeated index in subsampling.")
