@@ -1,9 +1,9 @@
-"""Test ``vivit.utils.param_groups``."""
+"""Test ``vivit.utils.checks``."""
 
 from pytest import raises
 from torch import rand
 
-from vivit.utils.param_groups import check_key_exists, check_unique_params
+from vivit.utils.checks import check_key_exists, check_unique_params
 
 
 def test_missing_key():
