@@ -62,7 +62,9 @@ def check_sizes(*plists):
 
     for params in zip(*plists):
         for i in range(len(params) - 1):
-            assert params[i].size() == params[i + 1].size()
+            assert (
+                params[i].size() == params[i + 1].size()
+            ), f"{params[i].size()} vs. {params[i + 1].size()}"
 
 
 def check_values(list1, list2, atol=atol, rtol=rtol):

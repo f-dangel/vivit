@@ -47,10 +47,10 @@ TOP_K = [1, 10]
 CRITERIA_IDS = [f"criterion=top_{k}" for k in TOP_K]
 CRITERIA = [make_criterion(k) for k in TOP_K]
 
-SUBSAMPLINGS_GGN = [None, [0, 0, 1, 0, 1]]
+SUBSAMPLINGS_GGN = [None, [0, 1]]
 SUBSAMPLINGS_GGN_IDS = [f"subsampling_ggn={sub}" for sub in SUBSAMPLINGS_GGN]
 
-SUBSAMPLINGS_GRAD = [None, [0, 0, 1, 0, 1]]
+SUBSAMPLINGS_GRAD = [None, [0, 1]]
 SUBSAMPLINGS_GRAD_IDS = [f"subsampling_grad={sub}" for sub in SUBSAMPLINGS_GRAD]
 
 PARAM_BLOCKS_FN = []

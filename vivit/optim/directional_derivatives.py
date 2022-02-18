@@ -1,7 +1,6 @@
 """Manage computations in Gram space through extension hooks."""
 
 import math
-import warnings
 from typing import Callable, Dict, List, Optional
 
 import torch
@@ -9,10 +8,11 @@ from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch.nn import Module
 
+from vivit.optim.utils import get_sqrt_ggn_extension
+from vivit.utils.checks import check_subsampling_unique
 from vivit.utils.eig import stable_symeig
 from vivit.utils.gram import partial_contract, reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
-from vivit.utils.subsampling import is_subset, merge_extensions, sample_output_mapping
 
 
 class DirectionalDerivativesComputation:
@@ -49,56 +49,23 @@ class DirectionalDerivativesComputation:
                 during backpropagation to command line (consider it a debugging tool).
                 Defaults to ``False``.
         """
-        subsampling_directions = subsampling_ggn
-        subsampling_first = subsampling_grad
-        subsampling_second = subsampling_ggn
+        check_subsampling_unique(subsampling_grad)
+        check_subsampling_unique(subsampling_ggn)
 
-        if mc_samples_ggn != 0:
+        self._mc_samples_ggn = mc_samples_ggn
+
+        if self._mc_samples_ggn != 0:
             assert mc_samples_ggn == 1
-            extension_cls_directions = SqrtGGNMC
-            extension_cls_second = SqrtGGNMC
+            self._extension_cls_ggn = SqrtGGNMC
         else:
-            extension_cls_directions = SqrtGGNExact
-            extension_cls_second = SqrtGGNExact
+            self._extension_cls_ggn = SqrtGGNExact
 
-        self._extension_cls_first = BatchGrad
-        self._savefield_first = self._extension_cls_first().savefield
-        self._subsampling_first = subsampling_first
+        self._extension_cls_grad = BatchGrad
+        self._savefield_grad = self._extension_cls_grad().savefield
+        self._subsampling_grad = subsampling_grad
 
-        self._extension_cls_second = extension_cls_second
-        self._savefield_second = extension_cls_second().savefield
-        self._subsampling_second = subsampling_second
-
-        self._extension_cls_directions = extension_cls_directions
-        self._savefield_directions = self._extension_cls_directions().savefield
-        self._subsampling_directions = subsampling_directions
-
-        # different tasks may use different samples of the same extension
-        self._merged_extensions = merge_extensions(
-            [
-                (self._extension_cls_first, self._subsampling_first),
-                (self._extension_cls_second, self._subsampling_second),
-                (self._extension_cls_directions, self._subsampling_directions),
-            ]
-        )
-
-        # how to access samples from the computed quantities
-        merged_subsampling_first = self._merged_extensions[self._extension_cls_first]
-        self._access_first = sample_output_mapping(
-            self._subsampling_first, merged_subsampling_first
-        )
-
-        merged_subsampling_second = self._merged_extensions[self._extension_cls_second]
-        self._access_second = sample_output_mapping(
-            self._subsampling_second, merged_subsampling_second
-        )
-
-        merged_subsampling_directions = self._merged_extensions[
-            self._extension_cls_directions
-        ]
-        self._access_directions = sample_output_mapping(
-            self._subsampling_directions, merged_subsampling_directions
-        )
+        self._savefield_ggn = self._extension_cls_ggn().savefield
+        self._subsampling_ggn = subsampling_ggn
 
         self._verbose = verbose
 
@@ -119,8 +86,10 @@ class DirectionalDerivativesComputation:
             the :py:class:`with backpack(...) <backpack.backpack>` context.
         """
         return [
-            ext_cls(subsampling=subsampling)
-            for ext_cls, subsampling in self._merged_extensions.items()
+            self._extension_cls_grad(subsampling=self._subsampling_grad),
+            get_sqrt_ggn_extension(
+                subsampling=self._subsampling_ggn, mc_samples=self._mc_samples_ggn
+            ),
         ]
 
     def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
@@ -198,7 +167,6 @@ class DirectionalDerivativesComputation:
         """
         param_computation_V_t_V = self._param_computation_V_t_V
         param_computation_V_t_g_n = self._param_computation_V_t_g_n
-        param_computation_V_n_t_V = self._param_computation_V_n_t_V
         param_computation_memory_cleanup = self._param_computation_memory_cleanup
 
         def param_computation(self, param):
@@ -216,7 +184,6 @@ class DirectionalDerivativesComputation:
             result = {
                 "V_t_V": param_computation_V_t_V(param),
                 "V_t_g_n": param_computation_V_t_g_n(param),
-                "V_n_t_V": param_computation_V_n_t_V(param),
             }
 
             param_computation_memory_cleanup(param)
@@ -322,8 +289,8 @@ class DirectionalDerivativesComputation:
         Returns:
             torch.Tensor: Scalar products ``V_t_V``.
         """
-        savefields = (self._savefield_directions, self._savefield_directions)
-        subsamplings = (self._access_directions, self._access_directions)
+        savefields = (self._savefield_ggn, self._savefield_ggn)
+        subsamplings = (self._subsampling_ggn, self._subsampling_ggn)
         start_dims = (2, 2)  # only applies to GGN and GGN-MC
 
         tensors = self._get_subsampled_tensors(
@@ -344,8 +311,8 @@ class DirectionalDerivativesComputation:
         Returns:
             torch.Tensor: Scalar products ``V_t_g_n``.
         """
-        savefields = (self._savefield_directions, self._savefield_first)
-        subsamplings = (self._access_directions, self._access_first)
+        savefields = (self._savefield_ggn, self._savefield_grad)
+        subsamplings = (self._subsampling_ggn, self._subsampling_grad)
         start_dims = (2, 1)  # only applies to (GGN or GGN-MC, BatchGrad)
 
         tensors = self._get_subsampled_tensors(
@@ -356,41 +323,6 @@ class DirectionalDerivativesComputation:
             print(f"Param {id(param)}: Compute 'V_t_g_n'")
 
         return partial_contract(*tensors, start_dims)
-
-    def _param_computation_V_n_t_V(self, param):
-        """Perform scalar products ``V_t_g_n`` if not fully contained in ``V_t_V``.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-
-        Returns:
-            None or torch.Tensor: ``None`` if all scalar products are already computed
-                through ``V_t_V``. Else returns the scalar products.
-        """
-        # assume same extensions for directions and derivatives
-        self._different_curvatures_not_supported()
-
-        if self._verbose:
-            print(f"Param {id(param)}: Compute 'V_n_t_V'")
-
-        # ``V_n_t_V`` already computed through ``V_t_V``
-        if is_subset(self._subsampling_second, self._subsampling_directions):
-            return None
-        else:
-            # TODO Recycle scalar products that are available from the Gram matrix
-            # and only compute the missing ones
-            self._warn_inefficient_subsamplings()
-
-            # re-compute everything, easier but less efficient
-            savefields = (self._savefield_second, self._savefield_directions)
-            subsamplings = (self._access_second, self._access_directions)
-            start_dims = (2, 2)  # only applies to (GGN or GGN-MC)
-
-            tensors = self._get_subsampled_tensors(
-                param, start_dims, savefields, subsamplings
-            )
-
-            return partial_contract(*tensors, start_dims)
 
     @staticmethod
     def _get_subsampled_tensors(param, start_dims, savefields, subsamplings):
@@ -436,9 +368,9 @@ class DirectionalDerivativesComputation:
             param (torch.Tensor): Parameter of a neural net.
         """
         savefields = {
-            self._savefield_directions,
-            self._savefield_first,
-            self._savefield_second,
+            self._savefield_ggn,
+            self._savefield_grad,
+            self._savefield_ggn,
         }
 
         for savefield in savefields:
@@ -466,8 +398,8 @@ class DirectionalDerivativesComputation:
         gram_mat = accumulation["V_t_V"]
 
         # compensate subsampling scale
-        if self._subsampling_directions is not None:
-            N_dir = len(self._subsampling_directions)
+        if self._subsampling_ggn is not None:
+            N_dir = len(self._subsampling_ggn)
             N = self._batch_size[group_id]
             gram_mat *= N / N_dir
 
@@ -525,8 +457,8 @@ class DirectionalDerivativesComputation:
         V_t_g_n = N * accumulation["V_t_g_n"]
 
         # compensate subsampling scale
-        if self._subsampling_directions is not None:
-            N_dir = len(self._subsampling_directions)
+        if self._subsampling_ggn is not None:
+            N_dir = len(self._subsampling_ggn)
             N = self._batch_size[group_id]
             V_t_g_n *= math.sqrt(N / N_dir)
 
@@ -556,9 +488,6 @@ class DirectionalDerivativesComputation:
             accumulation (dict): Dictionary with accumulated scalar products.
             group (dict): Parameter group of a ``torch.optim.Optimizer``.
         """
-        # assume same extensions for directions and derivatives
-        self._different_curvatures_not_supported()
-
         group_id = id(group)
 
         gram_evals = self._gram_evals[group_id]
@@ -566,34 +495,14 @@ class DirectionalDerivativesComputation:
         gram_mat = self._gram_mat[group_id]
 
         C_dir, N_dir = gram_mat.shape[:2]
-        batch_size = self._batch_size[group_id]
 
-        # all info in Gram matrix, just slice the relevant info
-        if is_subset(self._subsampling_second, self._subsampling_directions):
-            V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
+        V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
 
-            idx = sample_output_mapping(
-                self._subsampling_second, self._subsampling_directions
-            )
-            if idx is not None:
-                V_n_T_V = V_n_T_V[:, idx, :]
+        if self._subsampling_ggn is not None:
+            V_n_T_V = V_n_T_V[:, self._subsampling_ggn, :]
 
-            # compensate scale of V_n
-            V_n_T_V *= math.sqrt(N_dir)
-
-        else:
-            # TODO Recycle scalar products that are available from the Gram matrix
-            # and only compute the missing ones
-            self._warn_inefficient_subsamplings()
-
-            # re-compute everything, easier but less efficient
-            V_n_T_V = accumulation["V_n_t_V"]
-
-            C_second, N_second = V_n_T_V.shape[:2]
-            V_n_T_V = V_n_T_V.reshape(C_second, N_second, C_dir * N_dir)
-
-            # compensate scale of V_n
-            V_n_T_V *= batch_size / math.sqrt(N_dir)
+        # compensate scale of V_n
+        V_n_T_V *= math.sqrt(N_dir)
 
         V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, gram_evecs)
 
@@ -656,27 +565,3 @@ class DirectionalDerivativesComputation:
                     self._batch_size[group_id] = batch_size
 
         return hook_store_batch_size
-
-    def _different_curvatures_not_supported(self):
-        """Raise exception if curvatures for directions and derivatives deviate.
-
-        Raises:
-            NotImplementedError: If different extensions/curvature matrices are used
-                for directions and second-order directional derivatives, respectively.
-        """
-        if self._extension_cls_directions != self._extension_cls_second:
-            raise NotImplementedError(
-                "Different extensions for (directions, second) not supported."
-            )
-
-    def _warn_inefficient_subsamplings(self):
-        """Issue a warning if samples for ``λ[n,k]`` are not used in the Gram matrix.
-
-        This requires more pairwise scalar products be evaluated and makes the
-        computation less efficient.
-        """
-        warnings.warn(
-            "If subsampling_second is not a subset of subsampling_directions,"
-            + " all required dot products will be re-evaluated. This is not"
-            + " the most efficient, but less complex implementation."
-        )
