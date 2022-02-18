@@ -1,9 +1,13 @@
-"""Test ``vivit.utils.param_groups``."""
+"""Test ``vivit.utils.checks``."""
 
 from pytest import raises
 from torch import rand
 
-from vivit.utils.param_groups import check_key_exists, check_unique_params
+from vivit.utils.checks import (
+    check_key_exists,
+    check_subsampling_unique,
+    check_unique_params,
+)
 
 
 def test_missing_key():
@@ -24,3 +28,9 @@ def test_unique_params():
 
     with raises(ValueError):
         check_unique_params(param_groups)
+
+
+def test_subsampling_unique():
+    """Test detection of dduplicate sub-sampling inddices."""
+    with raises(ValueError):
+        check_subsampling_unique([0, 0, 1])
