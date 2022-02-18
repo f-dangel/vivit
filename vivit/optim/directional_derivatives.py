@@ -162,9 +162,11 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        param_computation_V_t_V = self._param_computation_V_t_V
-        param_computation_V_t_g_n = self._param_computation_V_t_g_n
-        param_computation_memory_cleanup = self._param_computation_memory_cleanup
+        savefield_ggn = self._savefield_ggn
+        savefield_grad = self._savefield_grad
+        subsampling_ggn = self._subsampling_ggn
+        subsampling_grad = self._subsampling_grad
+        verbose = self._verbose
 
         def param_computation(self, param):
             """Compute dot products for a parameter used in directional derivatives.
@@ -178,12 +180,23 @@ class DirectionalDerivativesComputation:
                 dict: Dictionary with results of the different dot products. Has key
                     ``"V_t_g_n"``.
             """
+            V, g = DirectionalDerivativesComputation._get_subsampled_tensors(
+                param,
+                start_dims=(2, 1),
+                savefields=(savefield_ggn, savefield_grad),
+                subsamplings=(subsampling_ggn, subsampling_grad),
+            )
+
+            if verbose:
+                print(f"Param {id(param)}: Compute 'V_t_V' and 'V_t_g_n'")
+
             result = {
-                "V_t_V": param_computation_V_t_V(param),
-                "V_t_g_n": param_computation_V_t_g_n(param),
+                "V_t_V": partial_contract(V, V, start_dims=(2, 2)),
+                "V_t_g_n": partial_contract(V, g, start_dims=(2, 1)),
             }
 
-            param_computation_memory_cleanup(param)
+            DirectionalDerivativesComputation._delete_savefield(param, savefield_ggn)
+            DirectionalDerivativesComputation._delete_savefield(param, savefield_grad)
 
             return result
 
@@ -277,49 +290,12 @@ class DirectionalDerivativesComputation:
 
     # parameter computations
 
-    def _param_computation_V_t_V(self, param):
-        """Perform scalar products ``V_t_V`` for a parameter.
+    @staticmethod
+    def _delete_savefield(param, savefield, verbose=False):
+        if verbose:
+            print(f"Param {id(param)}: Delete '{savefield}'")
 
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-
-        Returns:
-            torch.Tensor: Scalar products ``V_t_V``.
-        """
-        savefields = (self._savefield_ggn, self._savefield_ggn)
-        subsamplings = (self._subsampling_ggn, self._subsampling_ggn)
-        start_dims = (2, 2)  # only applies to GGN and GGN-MC
-
-        tensors = self._get_subsampled_tensors(
-            param, start_dims, savefields, subsamplings
-        )
-
-        if self._verbose:
-            print(f"Param {id(param)}: Compute 'V_t_V'")
-
-        return partial_contract(*tensors, start_dims)
-
-    def _param_computation_V_t_g_n(self, param):
-        """Perform scalar products ``V_t_g_n`` for a parameter.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-
-        Returns:
-            torch.Tensor: Scalar products ``V_t_g_n``.
-        """
-        savefields = (self._savefield_ggn, self._savefield_grad)
-        subsamplings = (self._subsampling_ggn, self._subsampling_grad)
-        start_dims = (2, 1)  # only applies to (GGN or GGN-MC, BatchGrad)
-
-        tensors = self._get_subsampled_tensors(
-            param, start_dims, savefields, subsamplings
-        )
-
-        if self._verbose:
-            print(f"Param {id(param)}: Compute 'V_t_g_n'")
-
-        return partial_contract(*tensors, start_dims)
+        delattr(param, savefield)
 
     @staticmethod
     def _get_subsampled_tensors(param, start_dims, savefields, subsamplings):
@@ -357,24 +333,6 @@ class DirectionalDerivativesComputation:
             tensors.append(tensor)
 
         return tensors
-
-    def _param_computation_memory_cleanup(self, param):
-        """Free buffers in a parameter that are not required anymore.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-        """
-        savefields = {
-            self._savefield_ggn,
-            self._savefield_grad,
-            self._savefield_ggn,
-        }
-
-        for savefield in savefields:
-            delattr(param, savefield)
-
-            if self._verbose:
-                print(f"Param {id(param)}: Delete '{savefield}'")
 
     # group hooks
 
