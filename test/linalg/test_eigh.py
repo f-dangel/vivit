@@ -40,9 +40,7 @@ def test_ggn_eigh_eigenvalues(
     """
     problem.set_up()
 
-    param_groups = param_groups_fn(problem.model.named_parameters())
-    for group in param_groups:
-        group["criterion"] = keep_all
+    param_groups = param_groups_fn(problem.model.named_parameters(), keep_all)
 
     backpack_eigh = BackpackLinalgExtensions(problem).eigh_ggn(
         param_groups, subsampling
@@ -97,9 +95,7 @@ def test_ggn_eigh_eigenvectors(
     """
     problem.set_up()
 
-    param_groups = param_groups_fn(problem.model.named_parameters())
-    for group in param_groups:
-        group["criterion"] = keep_nonzero
+    param_groups = param_groups_fn(problem.model.named_parameters(), keep_nonzero)
 
     backpack_eigh = BackpackLinalgExtensions(problem).eigh_ggn(
         param_groups, subsampling
