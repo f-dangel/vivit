@@ -44,59 +44,29 @@ def make_criterion(k, must_exceed=1e-5):
 
 
 TOP_K = [1, 10]
-TOP_K_IDS = [f"top_k={k}" for k in TOP_K]
-TOP_K = [make_criterion(k) for k in TOP_K]
+CRITERIA_IDS = [f"criterion=top_{k}" for k in TOP_K]
+CRITERIA = [make_criterion(k) for k in TOP_K]
 
-SUBSAMPLINGS_DIRECTIONS = [None, [0, 0, 1, 0, 1]]
-SUBSAMPLINGS_DIRECTIONS_IDS = [
-    f"subsampling_directions={sub}" for sub in SUBSAMPLINGS_DIRECTIONS
-]
+SUBSAMPLINGS_GGN = [None, [0, 1]]
+SUBSAMPLINGS_GGN_IDS = [f"subsampling_ggn={sub}" for sub in SUBSAMPLINGS_GGN]
 
-SUBSAMPLINGS_FIRST = [None, [0, 0, 1, 0, 1]]
-SUBSAMPLINGS_FIRST_IDS = [f"subsampling_first={sub}" for sub in SUBSAMPLINGS_FIRST]
-
-SUBSAMPLINGS_SECOND = [None, [0, 0, 1, 0, 1]]
-SUBSAMPLINGS_SECOND_IDS = [f"subsampling_second={sub}" for sub in SUBSAMPLINGS_SECOND]
+SUBSAMPLINGS_GRAD = [None, [0, 1]]
+SUBSAMPLINGS_GRAD_IDS = [f"subsampling_grad={sub}" for sub in SUBSAMPLINGS_GRAD]
 
 PARAM_BLOCKS_FN = []
 PARAM_BLOCKS_FN_IDS = []
 
 
-def one_group(named_parameters):
+def one_group(named_parameters, criterion):
     """All parameters in all group."""
-    return [{"params": [p for (_, p) in named_parameters]}]
+    return [{"params": [p for (_, p) in named_parameters], "criterion": criterion}]
 
 
 PARAM_BLOCKS_FN.append(one_group)
 PARAM_BLOCKS_FN_IDS.append("param_groups=one")
 
 
-def per_param(named_parameters):
-    """One parameter group for each parameter. Only group last two parameters.
-
-    Grouping the last two parameters is a fix to avoid degenerate eigenspaces
-    (which will then result in arbitrary directions and differing directional
-    derivatives). Consider for instance a last linear layer in a neural net
-    with ``MSELoss``. Then, the GGN w.r.t. only the last bias is proportional
-    to the identity matrix, hence its eigenspace is degenerate.
-    """
-    parameters = list(named_parameters)
-    num_params = len(parameters)
-
-    if num_params <= 2:
-        return one_group(parameters)
-    else:
-        parameters = [p for (_, p) in parameters]
-        return [{"params": list(parameters)[-2:]}] + [
-            {"params": [p]} for p in list(parameters)[: num_params - 2]
-        ]
-
-
-PARAM_BLOCKS_FN.append(per_param)
-PARAM_BLOCKS_FN_IDS.append("param_groups=per_param")
-
-
-def weights_and_biases(parameters):
+def weights_and_biases(parameters, criterion):
     """Group weights in one, biases in other group."""
     parameters = list(parameters)
 
@@ -108,8 +78,14 @@ def weights_and_biases(parameters):
         else:
             return param.dim() == 1
 
-    weights = {"params": [p for (n, p) in parameters if is_bias(n, p)]}
-    biases = {"params": [p for (n, p) in parameters if not is_bias(n, p)]}
+    weights = {
+        "params": [p for (n, p) in parameters if is_bias(n, p)],
+        "criterion": criterion,
+    }
+    biases = {
+        "params": [p for (n, p) in parameters if not is_bias(n, p)],
+        "criterion": criterion,
+    }
 
     if len(biases["params"]) == 1:
         raise ValueError(
@@ -123,10 +99,3 @@ def weights_and_biases(parameters):
 
 PARAM_BLOCKS_FN.append(weights_and_biases)
 PARAM_BLOCKS_FN_IDS.append("param_groups=weights_and_biases")
-
-
-def insert_criterion(param_groups, criterion):
-    """Add 'criterion' entry for each parameter group."""
-    criterion_entry = {"criterion": criterion}
-    for group in param_groups:
-        group.update(criterion_entry)
