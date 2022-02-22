@@ -108,7 +108,7 @@ with backpack(extension, extension_hook=extension_hook):
 
 # %%
 # This will compute the GGN eigenpairs for each parameter group and store them
-# internally in the :py:class:`EighComputation <vivit.EigComputation>` instance.
+# internally in the :py:class:`EighComputation <vivit.EighComputation>` instance.
 # We can use the parameter group to request the eigenpairs.
 
 evals, evecs = computation.get_result(group)
