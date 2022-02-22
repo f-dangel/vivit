@@ -209,7 +209,6 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        group_hook_filter_directions = self._group_hook_filter_directions
         group_hook_gammas = self._group_hook_gammas
         group_hook_lambdas = self._group_hook_lambdas
         group_hook_memory_cleanup = self._group_hook_memory_cleanup
@@ -235,21 +234,25 @@ class DirectionalDerivativesComputation:
                 N = batch_size[group_id]
                 gram_mat *= N / N_dir
 
-            gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(
-                eigenvectors=True
-            )
-
-            # save
-            accumulation["gram_mat"] = gram_mat
-            accumulation["gram_evals"] = gram_evals
-            accumulation["gram_evecs"] = gram_evecs
+            evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
 
             if verbose:
                 print(
-                    f"Group {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'"
+                    f"Compute {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'"
                 )
 
-            group_hook_filter_directions(accumulation, group)
+            keep = group["criterion"](evals)
+
+            if verbose:
+                before, after = len(evals), len(keep)
+                print(f"Group {group_id}: Filter directions ({before} → {after})")
+
+            evals, evecs = evals[keep], evecs[:, keep]
+
+            accumulation["gram_mat"] = gram_mat
+            accumulation["gram_evals"] = evals
+            accumulation["gram_evecs"] = evecs
+
             group_hook_gammas(accumulation, group)
             group_hook_lambdas(accumulation, group)
             group_hook_memory_cleanup(accumulation, group)
@@ -358,27 +361,6 @@ class DirectionalDerivativesComputation:
         return tensors
 
     # group hooks
-
-    def _group_hook_filter_directions(self, accumulation, group):
-        """Filter Gram directions depending on their eigenvalues.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group.
-        """
-        group_id = id(group)
-
-        evals = accumulation["gram_evals"]
-        evecs = accumulation["gram_evecs"]
-
-        keep = group["criterion"](evals)
-
-        accumulation["gram_evals"] = evals[keep]
-        accumulation["gram_evecs"] = evecs[:, keep]
-
-        if self._verbose:
-            before, after = len(evals), len(keep)
-            print(f"Group {group_id}: Filter directions ({before} → {after})")
 
     def _group_hook_gammas(self, accumulation, group):
         """Evaluate and store first-order directional derivatives ``γ[n, d]``.
