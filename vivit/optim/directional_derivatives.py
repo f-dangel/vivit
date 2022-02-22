@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Optional
 import torch
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
+from torch import Tensor, einsum
 from torch.nn import Module
 
 from vivit.optim.utils import get_sqrt_ggn_extension
@@ -167,13 +168,12 @@ class DirectionalDerivativesComputation:
         subsampling_grad = self._subsampling_grad
         verbose = self._verbose
 
-        def param_computation(self, param):
+        def param_computation(self: ParameterGroupsHook, param: Tensor):
             """Compute dot products for a parameter used in directional derivatives.
 
             Args:
-                self (ParameterGroupsHook): Group hook to which this function will be
-                    bound.
-                param (torch.Tensor): Parameter of a neural net.
+                self: Group hook to which this function will be bound.
+                param: Parameter of a neural net.
 
             Returns:
                 dict: Dictionary with results of the different dot products. Has key
@@ -209,7 +209,6 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        subsampling_ggn = self._subsampling_ggn
         verbose = self._verbose
         batch_size = self._batch_size
         gammas = self._gammas
@@ -225,65 +224,40 @@ class DirectionalDerivativesComputation:
                 group (dict): Parameter group of a ``torch.optim.Optimizer``.
             """
             group_id = id(group)
-            gram_mat = accumulation["V_t_V"]
-
-            # compensate subsampling scale
             N = batch_size.pop(group_id)
-            if subsampling_ggn is not None:
-                N_dir = len(subsampling_ggn)
-                gram_mat *= N / N_dir
+            N_ggn = accumulation["V_t_V"].shape[1]
 
-            evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+            # compensate scaling from BackPACK and subsampling
+            V_correction = math.sqrt(N / N_ggn)
+            gram_mat = V_correction**2 * accumulation.pop("V_t_V")
 
             if verbose:
-                print(
-                    f"Compute {group_id}: Store 'gram_mat', 'gram_evals', 'gram_evecs'"
-                )
+                print(f"Group {group_id}: Eigen-decompose Gram matrix")
+            evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
 
             keep = group["criterion"](evals)
-
             if verbose:
                 before, after = len(evals), len(keep)
                 print(f"Group {group_id}: Filter directions ({before} → {after})")
-
             evals, evecs = evals[keep], evecs[:, keep]
 
-            accumulation["gram_mat"] = gram_mat
-            accumulation["gram_evals"] = evals
-            accumulation["gram_evecs"] = evecs
-
-            # L = ¹/ₙ ∑ᵢ ℓᵢ, BackPACK's BatchGrad computes ¹/ₙ ∇ℓᵢ, we have to rescale
-            V_t_g_n = N * accumulation["V_t_g_n"]
-
-            # compensate subsampling scale
-            if subsampling_ggn is not None:
-                N_dir = len(subsampling_ggn)
-                V_t_g_n *= math.sqrt(N / N_dir)
-
-            # NOTE Flipping the order (g_n_t_V) may be more efficient
-            V_t_g_n = V_t_g_n.flatten(start_dim=0, end_dim=1)
-
-            gammas[group_id] = torch.einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
+            if verbose:
+                print(f"Group {group_id}: Compute gammas")
+            # compensate scaling from BackPACK and subsampling
+            V_t_g_n = (
+                V_correction
+                * N
+                * accumulation.pop("V_t_g_n").flatten(start_dim=0, end_dim=1)
+            )
+            gammas[group_id] = einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
 
             if verbose:
-                print(f"Group {group_id}: Store 'gammas'")
-
-            C_dir, N_dir = gram_mat.shape[:2]
-
-            V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
-
-            if subsampling_ggn is not None:
-                V_n_T_V = V_n_T_V[:, subsampling_ggn, :]
-
-            # compensate scale of V_n
-            V_n_T_V *= math.sqrt(N_dir)
-
-            V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, evecs)
-
+                print(f"Group {group_id}: Compute lambdas")
+            # compensate scaling from BackPACK and subsampling
+            V_n_T_V_e_d = math.sqrt(N_ggn) * einsum(
+                "cni,id->cnd", gram_mat.flatten(start_dim=2), evecs
+            )
             lambdas[group_id] = (V_n_T_V_e_d**2).sum(0) / evals
-
-            if verbose:
-                print(f"Group {group_id}: Store 'lambdas'")
 
         return group_hook
 
@@ -342,8 +316,6 @@ class DirectionalDerivativesComputation:
 
         return accumulate
 
-    # parameter computations
-
     @staticmethod
     def _delete_savefield(param, savefield, verbose=False):
         if verbose:
@@ -387,8 +359,6 @@ class DirectionalDerivativesComputation:
             tensors.append(tensor)
 
         return tensors
-
-    # group hooks
 
     def _get_hook_store_batch_size(self, param_groups):
         """Create extension hook that stores the batch size during backpropagation.
