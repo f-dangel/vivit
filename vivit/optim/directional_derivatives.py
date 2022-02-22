@@ -209,7 +209,6 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        group_hook_memory_cleanup = self._group_hook_memory_cleanup
         subsampling_ggn = self._subsampling_ggn
         verbose = self._verbose
         batch_size = self._batch_size
@@ -286,7 +285,10 @@ class DirectionalDerivativesComputation:
             if verbose:
                 print(f"Group {group_id}: Store 'lambdas'")
 
-            group_hook_memory_cleanup(accumulation, group)
+            batch_size.pop(group_id)
+
+            if verbose:
+                print(f"Group {group_id}: Delete 'batch_size'")
 
         return group_hook
 
@@ -392,25 +394,6 @@ class DirectionalDerivativesComputation:
         return tensors
 
     # group hooks
-
-    def _group_hook_memory_cleanup(self, accumulation, group):
-        """Free up buffers which are not required anymore for a group.
-
-        Modifies temporary buffers.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-        buffers = ["_batch_size"]
-
-        for b in buffers:
-
-            if self._verbose:
-                print(f"Group {group_id}: Delete '{b}'")
-
-            getattr(self, b).pop(group_id)
 
     def _get_hook_store_batch_size(self, param_groups):
         """Create extension hook that stores the batch size during backpropagation.
