@@ -209,11 +209,13 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        group_hook_directions = self._group_hook_directions
         group_hook_filter_directions = self._group_hook_filter_directions
         group_hook_gammas = self._group_hook_gammas
         group_hook_lambdas = self._group_hook_lambdas
         group_hook_memory_cleanup = self._group_hook_memory_cleanup
+        subsampling_ggn = self._subsampling_ggn
+        verbose = self._verbose
+        batch_size = self._batch_size
 
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
@@ -224,7 +226,29 @@ class DirectionalDerivativesComputation:
                 accumulation (dict): Accumulated dot products.
                 group (dict): Parameter group of a ``torch.optim.Optimizer``.
             """
-            group_hook_directions(accumulation, group)
+            group_id = id(group)
+            gram_mat = accumulation["V_t_V"]
+
+            # compensate subsampling scale
+            if subsampling_ggn is not None:
+                N_dir = len(subsampling_ggn)
+                N = batch_size[group_id]
+                gram_mat *= N / N_dir
+
+            gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(
+                eigenvectors=True
+            )
+
+            # save
+            accumulation["gram_mat"] = gram_mat
+            accumulation["gram_evals"] = gram_evals
+            accumulation["gram_evecs"] = gram_evecs
+
+            if verbose:
+                print(
+                    f"Group {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'"
+                )
+
             group_hook_filter_directions(accumulation, group)
             group_hook_gammas(accumulation, group)
             group_hook_lambdas(accumulation, group)
@@ -334,32 +358,6 @@ class DirectionalDerivativesComputation:
         return tensors
 
     # group hooks
-
-    def _group_hook_directions(self, accumulation, group):
-        """Evaluate and store directions of quadratic model in the Gram space.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-        gram_mat = accumulation["V_t_V"]
-
-        # compensate subsampling scale
-        if self._subsampling_ggn is not None:
-            N_dir = len(self._subsampling_ggn)
-            N = self._batch_size[group_id]
-            gram_mat *= N / N_dir
-
-        gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
-
-        # save
-        accumulation["gram_mat"] = gram_mat
-        accumulation["gram_evals"] = gram_evals
-        accumulation["gram_evecs"] = gram_evecs
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'")
 
     def _group_hook_filter_directions(self, accumulation, group):
         """Filter Gram directions depending on their eigenvalues.
