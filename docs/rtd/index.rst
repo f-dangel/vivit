@@ -16,7 +16,8 @@ It is designed to be used with `BackPACK
 - GGN eigenpairs (eigenvalues + eigenvector, :ref:`basic example <Computing GGN
   eigenpairs>`)
 
-- 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
+- 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors :ref:`basic
+  example <Computing directional derivatives along GGN eigenvectors>`)
 
 - Newton steps
 
