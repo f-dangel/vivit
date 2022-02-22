@@ -1,7 +1,7 @@
 """Manage computations in Gram space through extension hooks."""
 
 import math
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
@@ -74,6 +74,31 @@ class DirectionalDerivativesComputation:
         self._gammas = {}
         self._lambdas = {}
         self._batch_size = {}
+
+    def get_result(self, group: Dict) -> Tuple[Tensor, Tensor]:
+        """Return 1ˢᵗ/2ⁿᵈ-order directional derivatives along GGN eigenvectors.
+
+        Must be called after the backward pass.
+
+        Args:
+            group: Parameter group that defines the GGN block.
+
+        Returns:
+            1ˢᵗ- directional derivatives ``γ`` as ``[N, K]`` tensor with ``γ[n, k]`` the
+            directional gradient of sample ``n`` (or ``subsampling_grad[n]``) along
+            direction ``k``.
+            2ⁿᵈ- directional derivatives ``λ`` as ``[N, K]`` tensor with ``λ[n, k]`` the
+            directional curvature of sample ``n`` (or ``subsampling_ggn[n]``) along
+            direction ``k``.
+
+        Raises:
+            KeyError: If there are no results for the group.
+        """
+        group_id = id(group)
+        try:
+            return self._gammas[group_id], self._lambdas[group_id]
+        except KeyError as e:
+            raise KeyError("No results available for this group") from e
 
     def get_extensions(self) -> List[BackpropExtension]:
         """Instantiate the BackPACK extensions to compute GGN directional derivatives.
