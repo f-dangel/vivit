@@ -17,7 +17,8 @@ GGN eigenpairs (eigenvalues + eigenvector)
 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors
 -----------------------------------------------------------------
 
-TODO
+.. autoclass:: vivit.DirectionalDerivativesComputation
+   :members: __init__, get_extensions, get_extension_hook, get_result
 
 Newton steps
 --------------

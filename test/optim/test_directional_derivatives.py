@@ -18,8 +18,10 @@ from test.problem import ExtensionsTestProblem
 from test.utils import check_sizes_and_values
 from typing import Callable, List, Union
 
-from pytest import mark
+from pytest import mark, raises
 from torch import Tensor
+
+from vivit import DirectionalDerivativesComputation
 
 
 @mark.parametrize("param_groups_fn", PARAM_BLOCKS_FN, ids=PARAM_BLOCKS_FN_IDS)
@@ -68,3 +70,11 @@ def test_directional_derivatives(
     check_sizes_and_values(ag_lambdas, bp_lambdas, rtol=1e-5, atol=1e-5)
 
     problem.tear_down()
+
+
+def test_get_result():
+    """Test retrieving results for an unknown group fails."""
+    group = {"params": []}
+
+    with raises(KeyError):
+        DirectionalDerivativesComputation().get_result(group)
