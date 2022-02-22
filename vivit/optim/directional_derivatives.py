@@ -11,7 +11,11 @@ from torch.nn import Module
 
 from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
-from vivit.utils.checks import check_subsampling_unique
+from vivit.utils.checks import (
+    check_key_exists,
+    check_subsampling_unique,
+    check_unique_params,
+)
 from vivit.utils.gram import partial_contract, reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
 
@@ -150,6 +154,7 @@ class DirectionalDerivativesComputation:
             The hook computes GGN directional derivatives during backpropagation and
             stores them internally (under ``self._gammas`` and ``self._lambdas``).
         """
+        self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(
             param_groups, self._batch_size, verbose=self._verbose
         )
@@ -387,3 +392,14 @@ class DirectionalDerivativesComputation:
             tensors.append(tensor)
 
         return tensors
+
+    @staticmethod
+    def _check_param_groups(param_groups: List[Dict]):
+        """Check if parameter groups satisfy the required format.
+
+        Args:
+            param_groups: Parameter groups that define the GGN block structure.
+        """
+        check_key_exists(param_groups, "params")
+        check_key_exists(param_groups, "criterion")
+        check_unique_params(param_groups)
