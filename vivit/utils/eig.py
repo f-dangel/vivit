@@ -3,39 +3,6 @@
 import torch
 
 
-# TODO Deprecate this method in favor of symeig_psd
-def stable_symeig(input, eigenvectors=False, upper=True):
-    """Compute EVals and EVecs of a matrix.
-
-    This is a wrapper around ``torch.symeig``. If ``torch.symeig`` fails to compute
-    the eigenvalues and -vectors, we shift the diagonal of the input by ``1`` to
-    decrease the condition number. Then ``torch.symeig`` is called on this matrix and
-    we obtain the eigenvalues by substracting ``1`` again.
-
-    Args:
-        input (torch.Tensor): 2d symmetric tensor.
-        eigenvectors (bool): Whether eigenvectors should be computed.
-        upper(bool): Whether to consider upper-triangular or lower-triangular
-            region of the matrix.
-
-    Returns:
-        (torch.Tensor, torch.Tensor): First tensor of one dimension contains
-            eigenvalues. Second tensor holds associated eigenvectors stored columnwise,
-            i.e. ``evecs[:, i]`` is eigenvector with eigenvalue ``evals[i]``.
-    """
-    try:
-        eig = input.symeig(eigenvectors=eigenvectors, upper=upper)
-    except RuntimeError:
-        eig = symeig_psd(
-            input,
-            eigenvectors=eigenvectors,
-            upper=upper,
-            shift=1.0,
-            shift_inplace=False,
-        )
-    return eig
-
-
 def symeig_psd(input, eigenvectors=False, upper=True, shift=0.0, shift_inplace=False):
     """Compute EVals and EVecs of a positive semi-definite symmetric matrix.
 

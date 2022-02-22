@@ -10,7 +10,6 @@ from torch.nn import Module
 
 from vivit.optim.utils import get_sqrt_ggn_extension
 from vivit.utils.checks import check_subsampling_unique
-from vivit.utils.eig import stable_symeig
 from vivit.utils.gram import partial_contract, reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
 
@@ -352,9 +351,7 @@ class DirectionalDerivativesComputation:
             N = self._batch_size[group_id]
             gram_mat *= N / N_dir
 
-        gram_evals, gram_evecs = stable_symeig(
-            reshape_as_square(gram_mat), eigenvectors=True
-        )
+        gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
 
         # save
         accumulation["gram_mat"] = gram_mat
