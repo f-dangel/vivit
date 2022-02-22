@@ -209,12 +209,12 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        group_hook_gammas = self._group_hook_gammas
         group_hook_lambdas = self._group_hook_lambdas
         group_hook_memory_cleanup = self._group_hook_memory_cleanup
         subsampling_ggn = self._subsampling_ggn
         verbose = self._verbose
         batch_size = self._batch_size
+        gammas = self._gammas
 
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
@@ -229,16 +229,16 @@ class DirectionalDerivativesComputation:
             gram_mat = accumulation["V_t_V"]
 
             # compensate subsampling scale
+            N = batch_size[group_id]
             if subsampling_ggn is not None:
                 N_dir = len(subsampling_ggn)
-                N = batch_size[group_id]
                 gram_mat *= N / N_dir
 
             evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
 
             if verbose:
                 print(
-                    f"Compute {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'"
+                    f"Compute {group_id}: Store 'gram_mat', 'gram_evals', 'gram_evecs'"
                 )
 
             keep = group["criterion"](evals)
@@ -253,7 +253,22 @@ class DirectionalDerivativesComputation:
             accumulation["gram_evals"] = evals
             accumulation["gram_evecs"] = evecs
 
-            group_hook_gammas(accumulation, group)
+            # L = ¹/ₙ ∑ᵢ ℓᵢ, BackPACK's BatchGrad computes ¹/ₙ ∇ℓᵢ, we have to rescale
+            V_t_g_n = N * accumulation["V_t_g_n"]
+
+            # compensate subsampling scale
+            if subsampling_ggn is not None:
+                N_dir = len(subsampling_ggn)
+                V_t_g_n *= math.sqrt(N / N_dir)
+
+            # NOTE Flipping the order (g_n_t_V) may be more efficient
+            V_t_g_n = V_t_g_n.flatten(start_dim=0, end_dim=1)
+
+            gammas[group_id] = torch.einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
+
+            if verbose:
+                print(f"Group {group_id}: Store 'gammas'")
+
             group_hook_lambdas(accumulation, group)
             group_hook_memory_cleanup(accumulation, group)
 
@@ -361,44 +376,6 @@ class DirectionalDerivativesComputation:
         return tensors
 
     # group hooks
-
-    def _group_hook_gammas(self, accumulation, group):
-        """Evaluate and store first-order directional derivatives ``γ[n, d]``.
-
-        Sets the following entries under the id of ``group``:
-
-        - In ``self._gammas``: First-order directional derivatives.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-
-        # L = ¹/ₙ ∑ᵢ ℓᵢ, BackPACK's BatchGrad computes ¹/ₙ ∇ℓᵢ, we have to rescale
-        N = self._batch_size[group_id]
-
-        V_t_g_n = N * accumulation["V_t_g_n"]
-
-        # compensate subsampling scale
-        if self._subsampling_ggn is not None:
-            N_dir = len(self._subsampling_ggn)
-            V_t_g_n *= math.sqrt(N / N_dir)
-
-        # NOTE Flipping the order (g_n_t_V) may be more efficient
-        V_t_g_n = V_t_g_n.flatten(
-            start_dim=0, end_dim=1
-        )  # only applies to GGN and GGN-MC
-
-        gammas = (
-            torch.einsum("in,id->nd", V_t_g_n, accumulation["gram_evecs"])
-            / accumulation["gram_evals"].sqrt()
-        )
-
-        self._gammas[group_id] = gammas
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store 'gammas'")
 
     def _group_hook_lambdas(self, accumulation, group):
         """Evaluate and store second-order directional derivatives ``λ[n, d]``.
