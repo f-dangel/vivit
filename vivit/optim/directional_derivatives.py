@@ -228,7 +228,7 @@ class DirectionalDerivativesComputation:
             gram_mat = accumulation["V_t_V"]
 
             # compensate subsampling scale
-            N = batch_size[group_id]
+            N = batch_size.pop(group_id)
             if subsampling_ggn is not None:
                 N_dir = len(subsampling_ggn)
                 gram_mat *= N / N_dir
@@ -284,11 +284,6 @@ class DirectionalDerivativesComputation:
 
             if verbose:
                 print(f"Group {group_id}: Store 'lambdas'")
-
-            batch_size.pop(group_id)
-
-            if verbose:
-                print(f"Group {group_id}: Delete 'batch_size'")
 
         return group_hook
 
