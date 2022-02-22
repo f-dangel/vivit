@@ -9,6 +9,7 @@ from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor, einsum
 from torch.nn import Module
 
+from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
 from vivit.utils.checks import check_subsampling_unique
 from vivit.utils.gram import partial_contract, reshape_as_square
@@ -124,7 +125,9 @@ class DirectionalDerivativesComputation:
             The hook computes GGN directional derivatives during backpropagation and
             stores them internally (under ``self._gammas`` and ``self._lambdas``).
         """
-        hook_store_batch_size = self._get_hook_store_batch_size(param_groups)
+        hook_store_batch_size = get_hook_store_batch_size(
+            param_groups, self._batch_size, verbose=self._verbose
+        )
 
         param_computation = self.get_param_computation()
         group_hook = self.get_group_hook()
@@ -359,37 +362,3 @@ class DirectionalDerivativesComputation:
             tensors.append(tensor)
 
         return tensors
-
-    def _get_hook_store_batch_size(self, param_groups):
-        """Create extension hook that stores the batch size during backpropagation.
-
-        Args:
-            param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-
-        Returns:
-            callable: Hook function to hand into a ``with backpack(...)`` context.
-                Stores the batch size under the ``self._batch_size`` dictionary for each
-                group.
-        """
-
-        def hook_store_batch_size(module):
-            """Store batch size internally.
-
-            Modifies ``self._batch_size``.
-
-            Args:
-                module (torch.nn.Module): The module on which the hook is executed.
-            """
-            if self._batch_size == {}:
-                batch_axis = 0
-                batch_size = module.input0.shape[batch_axis]
-
-                for group in param_groups:
-                    group_id = id(group)
-
-                    if self._verbose:
-                        print(f"Group {group_id}: Store 'batch_size'")
-
-                    self._batch_size[group_id] = batch_size
-
-        return hook_store_batch_size
