@@ -30,6 +30,11 @@ class BackpackOptimExtensions(BackpackExtensions):
         ):
             loss.backward()
 
-        return [computations._gammas[id(group)] for group in param_groups], [
-            computations._lambdas[id(group)] for group in param_groups
-        ]
+        gammas, lambdas = [], []
+
+        for group in param_groups:
+            group_gammas, group_lambdas = computations.get_result(group)
+            gammas.append(group_gammas)
+            lambdas.append(group_lambdas)
+
+        return gammas, lambdas
