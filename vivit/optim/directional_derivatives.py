@@ -6,11 +6,12 @@ from typing import Callable, Dict, List, Optional
 import torch
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
+from torch import Tensor, einsum
 from torch.nn import Module
 
+from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
 from vivit.utils.checks import check_subsampling_unique
-from vivit.utils.eig import stable_symeig
 from vivit.utils.gram import partial_contract, reshape_as_square
 from vivit.utils.hooks import ParameterGroupsHook
 
@@ -70,9 +71,6 @@ class DirectionalDerivativesComputation:
         self._verbose = verbose
 
         # filled via side effects during update step computation, keys are group ids
-        self._gram_evals = {}
-        self._gram_evecs = {}
-        self._gram_mat = {}
         self._gammas = {}
         self._lambdas = {}
         self._batch_size = {}
@@ -127,7 +125,9 @@ class DirectionalDerivativesComputation:
             The hook computes GGN directional derivatives during backpropagation and
             stores them internally (under ``self._gammas`` and ``self._lambdas``).
         """
-        hook_store_batch_size = self._get_hook_store_batch_size(param_groups)
+        hook_store_batch_size = get_hook_store_batch_size(
+            param_groups, self._batch_size, verbose=self._verbose
+        )
 
         param_computation = self.get_param_computation()
         group_hook = self.get_group_hook()
@@ -165,28 +165,40 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        param_computation_V_t_V = self._param_computation_V_t_V
-        param_computation_V_t_g_n = self._param_computation_V_t_g_n
-        param_computation_memory_cleanup = self._param_computation_memory_cleanup
+        savefield_ggn = self._savefield_ggn
+        savefield_grad = self._savefield_grad
+        subsampling_ggn = self._subsampling_ggn
+        subsampling_grad = self._subsampling_grad
+        verbose = self._verbose
 
-        def param_computation(self, param):
+        def param_computation(self: ParameterGroupsHook, param: Tensor):
             """Compute dot products for a parameter used in directional derivatives.
 
             Args:
-                self (ParameterGroupsHook): Group hook to which this function will be
-                    bound.
-                param (torch.Tensor): Parameter of a neural net.
+                self: Group hook to which this function will be bound.
+                param: Parameter of a neural net.
 
             Returns:
                 dict: Dictionary with results of the different dot products. Has key
                     ``"V_t_g_n"``.
             """
+            V, g = DirectionalDerivativesComputation._get_subsampled_tensors(
+                param,
+                start_dims=(2, 1),
+                savefields=(savefield_ggn, savefield_grad),
+                subsamplings=(subsampling_ggn, subsampling_grad),
+            )
+
+            if verbose:
+                print(f"Param {id(param)}: Compute 'V_t_V' and 'V_t_g_n'")
+
             result = {
-                "V_t_V": param_computation_V_t_V(param),
-                "V_t_g_n": param_computation_V_t_g_n(param),
+                "V_t_V": partial_contract(V, V, start_dims=(2, 2)),
+                "V_t_g_n": partial_contract(V, g, start_dims=(2, 1)),
             }
 
-            param_computation_memory_cleanup(param)
+            DirectionalDerivativesComputation._delete_savefield(param, savefield_ggn)
+            DirectionalDerivativesComputation._delete_savefield(param, savefield_grad)
 
             return result
 
@@ -200,11 +212,10 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        group_hook_directions = self._group_hook_directions
-        group_hook_filter_directions = self._group_hook_filter_directions
-        group_hook_gammas = self._group_hook_gammas
-        group_hook_lambdas = self._group_hook_lambdas
-        group_hook_memory_cleanup = self._group_hook_memory_cleanup
+        verbose = self._verbose
+        batch_size = self._batch_size
+        gammas = self._gammas
+        lambdas = self._lambdas
 
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
@@ -215,11 +226,41 @@ class DirectionalDerivativesComputation:
                 accumulation (dict): Accumulated dot products.
                 group (dict): Parameter group of a ``torch.optim.Optimizer``.
             """
-            group_hook_directions(accumulation, group)
-            group_hook_filter_directions(accumulation, group)
-            group_hook_gammas(accumulation, group)
-            group_hook_lambdas(accumulation, group)
-            group_hook_memory_cleanup(accumulation, group)
+            group_id = id(group)
+            N = batch_size.pop(group_id)
+            N_ggn = accumulation["V_t_V"].shape[1]
+
+            # compensate scaling from BackPACK and subsampling
+            V_correction = math.sqrt(N / N_ggn)
+            gram_mat = V_correction**2 * accumulation.pop("V_t_V")
+
+            if verbose:
+                print(f"Group {group_id}: Eigen-decompose Gram matrix")
+            evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+
+            keep = group["criterion"](evals)
+            if verbose:
+                before, after = len(evals), len(keep)
+                print(f"Group {group_id}: Filter directions ({before} → {after})")
+            evals, evecs = evals[keep], evecs[:, keep]
+
+            if verbose:
+                print(f"Group {group_id}: Compute gammas")
+            # compensate scaling from BackPACK and subsampling
+            V_t_g_n = (
+                V_correction
+                * N
+                * accumulation.pop("V_t_g_n").flatten(start_dim=0, end_dim=1)
+            )
+            gammas[group_id] = einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
+
+            if verbose:
+                print(f"Group {group_id}: Compute lambdas")
+            # compensate scaling from BackPACK and subsampling
+            V_n_T_V_e_d = math.sqrt(N_ggn) * einsum(
+                "cni,id->cnd", gram_mat.flatten(start_dim=2), evecs
+            )
+            lambdas[group_id] = (V_n_T_V_e_d**2).sum(0) / evals
 
         return group_hook
 
@@ -278,51 +319,12 @@ class DirectionalDerivativesComputation:
 
         return accumulate
 
-    # parameter computations
+    @staticmethod
+    def _delete_savefield(param, savefield, verbose=False):
+        if verbose:
+            print(f"Param {id(param)}: Delete '{savefield}'")
 
-    def _param_computation_V_t_V(self, param):
-        """Perform scalar products ``V_t_V`` for a parameter.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-
-        Returns:
-            torch.Tensor: Scalar products ``V_t_V``.
-        """
-        savefields = (self._savefield_ggn, self._savefield_ggn)
-        subsamplings = (self._subsampling_ggn, self._subsampling_ggn)
-        start_dims = (2, 2)  # only applies to GGN and GGN-MC
-
-        tensors = self._get_subsampled_tensors(
-            param, start_dims, savefields, subsamplings
-        )
-
-        if self._verbose:
-            print(f"Param {id(param)}: Compute 'V_t_V'")
-
-        return partial_contract(*tensors, start_dims)
-
-    def _param_computation_V_t_g_n(self, param):
-        """Perform scalar products ``V_t_g_n`` for a parameter.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-
-        Returns:
-            torch.Tensor: Scalar products ``V_t_g_n``.
-        """
-        savefields = (self._savefield_ggn, self._savefield_grad)
-        subsamplings = (self._subsampling_ggn, self._subsampling_grad)
-        start_dims = (2, 1)  # only applies to (GGN or GGN-MC, BatchGrad)
-
-        tensors = self._get_subsampled_tensors(
-            param, start_dims, savefields, subsamplings
-        )
-
-        if self._verbose:
-            print(f"Param {id(param)}: Compute 'V_t_g_n'")
-
-        return partial_contract(*tensors, start_dims)
+        delattr(param, savefield)
 
     @staticmethod
     def _get_subsampled_tensors(param, start_dims, savefields, subsamplings):
@@ -360,208 +362,3 @@ class DirectionalDerivativesComputation:
             tensors.append(tensor)
 
         return tensors
-
-    def _param_computation_memory_cleanup(self, param):
-        """Free buffers in a parameter that are not required anymore.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-        """
-        savefields = {
-            self._savefield_ggn,
-            self._savefield_grad,
-            self._savefield_ggn,
-        }
-
-        for savefield in savefields:
-            delattr(param, savefield)
-
-            if self._verbose:
-                print(f"Param {id(param)}: Delete '{savefield}'")
-
-    # group hooks
-
-    def _group_hook_directions(self, accumulation, group):
-        """Evaluate and store directions of quadratic model in the Gram space.
-
-        Sets the following entries under the id of ``group``:
-
-        - In ``self._gram_evals``: Eigenvalues, sorted in ascending order.
-        - In ``self._gram_evecs``: Normalized eigenvectors, stacked column-wise.
-        - In ``self._gram_mat``: The Gram matrix ``Vᵀ V``.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-        gram_mat = accumulation["V_t_V"]
-
-        # compensate subsampling scale
-        if self._subsampling_ggn is not None:
-            N_dir = len(self._subsampling_ggn)
-            N = self._batch_size[group_id]
-            gram_mat *= N / N_dir
-
-        gram_evals, gram_evecs = stable_symeig(
-            reshape_as_square(gram_mat), eigenvectors=True
-        )
-
-        # save
-        self._gram_mat[group_id] = gram_mat
-        self._gram_evals[group_id] = gram_evals
-        self._gram_evecs[group_id] = gram_evecs
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store 'gram_mat', 'gram_evals', 'gram_evecs'")
-
-    def _group_hook_filter_directions(self, accumulation, group):
-        """Filter Gram directions depending on their eigenvalues.
-
-        Modifies the group entries in ``self._gram_evals`` and ``self._gram_evecs``.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group.
-        """
-        group_id = id(group)
-
-        evals = self._gram_evals[group_id]
-        evecs = self._gram_evecs[group_id]
-
-        keep = group["criterion"](evals)
-
-        self._gram_evals[group_id] = evals[keep]
-        self._gram_evecs[group_id] = evecs[:, keep]
-
-        if self._verbose:
-            before, after = len(evals), len(keep)
-            print(f"Group {id(group)}: Filter directions ({before} → {after})")
-
-    def _group_hook_gammas(self, accumulation, group):
-        """Evaluate and store first-order directional derivatives ``γ[n, d]``.
-
-        Sets the following entries under the id of ``group``:
-
-        - In ``self._gammas``: First-order directional derivatives.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-
-        # L = ¹/ₙ ∑ᵢ ℓᵢ, BackPACK's BatchGrad computes ¹/ₙ ∇ℓᵢ, we have to rescale
-        N = self._batch_size[group_id]
-
-        V_t_g_n = N * accumulation["V_t_g_n"]
-
-        # compensate subsampling scale
-        if self._subsampling_ggn is not None:
-            N_dir = len(self._subsampling_ggn)
-            N = self._batch_size[group_id]
-            V_t_g_n *= math.sqrt(N / N_dir)
-
-        # NOTE Flipping the order (g_n_t_V) may be more efficient
-        V_t_g_n = V_t_g_n.flatten(
-            start_dim=0, end_dim=1
-        )  # only applies to GGN and GGN-MC
-
-        gammas = (
-            torch.einsum("in,id->nd", V_t_g_n, self._gram_evecs[group_id])
-            / self._gram_evals[group_id].sqrt()
-        )
-
-        self._gammas[group_id] = gammas
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store 'gammas'")
-
-    def _group_hook_lambdas(self, accumulation, group):
-        """Evaluate and store second-order directional derivatives ``λ[n, d]``.
-
-        Sets the following entries under the id of ``group``:
-
-        - In ``self._lambdas``: Second-order directional derivatives.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-
-        gram_evals = self._gram_evals[group_id]
-        gram_evecs = self._gram_evecs[group_id]
-        gram_mat = self._gram_mat[group_id]
-
-        C_dir, N_dir = gram_mat.shape[:2]
-
-        V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
-
-        if self._subsampling_ggn is not None:
-            V_n_T_V = V_n_T_V[:, self._subsampling_ggn, :]
-
-        # compensate scale of V_n
-        V_n_T_V *= math.sqrt(N_dir)
-
-        V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, gram_evecs)
-
-        lambdas = (V_n_T_V_e_d**2).sum(0) / gram_evals
-
-        self._lambdas[group_id] = lambdas
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store 'lambdas'")
-
-    def _group_hook_memory_cleanup(self, accumulation, group):
-        """Free up buffers which are not required anymore for a group.
-
-        Modifies temporary buffers.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-        buffers = ["_gram_mat", "_gram_evals", "_gram_evecs", "_batch_size"]
-
-        for b in buffers:
-
-            if self._verbose:
-                print(f"Group {group_id}: Delete '{b}'")
-
-            getattr(self, b).pop(group_id)
-
-    def _get_hook_store_batch_size(self, param_groups):
-        """Create extension hook that stores the batch size during backpropagation.
-
-        Args:
-            param_groups (list): Parameter group list from a ``torch.optim.Optimizer``.
-
-        Returns:
-            callable: Hook function to hand into a ``with backpack(...)`` context.
-                Stores the batch size under the ``self._batch_size`` dictionary for each
-                group.
-        """
-
-        def hook_store_batch_size(module):
-            """Store batch size internally.
-
-            Modifies ``self._batch_size``.
-
-            Args:
-                module (torch.nn.Module): The module on which the hook is executed.
-            """
-            if self._batch_size == {}:
-                batch_axis = 0
-                batch_size = module.input0.shape[batch_axis]
-
-                for group in param_groups:
-                    group_id = id(group)
-
-                    if self._verbose:
-                        print(f"Group {group_id}: Store 'batch_size'")
-
-                    self._batch_size[group_id] = batch_size
-
-        return hook_store_batch_size

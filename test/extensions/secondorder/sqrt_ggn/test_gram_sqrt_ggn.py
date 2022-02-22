@@ -22,7 +22,7 @@ def test_gram_sqrt_ggn_spectrum(problem):
     ggn_mat = AutogradExtensions(problem).ggn()
     gram_mat = BackpackExtensions(problem).gram_sqrt_ggn()
 
-    rtol, atol = 1e-5, 1e-6
+    rtol, atol = 1e-5, 2e-6
     ggn_evals, _ = symeig(ggn_mat, atol=atol, rtol=rtol)
     gram_evals, _ = symeig(gram_mat, atol=atol, rtol=rtol)
 
@@ -48,7 +48,7 @@ def test_gram_sqrt_ggn_mc_spectrum(problem, mc_samples):
     gram_mat = BackpackExtensions(problem).gram_sqrt_ggn_mc(mc_samples)
     problem.tear_down()
 
-    rtol, atol = 1e-5, 1e-6
+    rtol, atol = 1e-5, 2e-6
     ggn_evals, _ = symeig(ggn_mat, atol=atol, rtol=rtol)
     gram_evals, _ = symeig(gram_mat, atol=atol, rtol=rtol)
 
