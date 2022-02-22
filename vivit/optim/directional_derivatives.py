@@ -209,12 +209,12 @@ class DirectionalDerivativesComputation:
                 Performs an action on the accumulated results over parameters for a
                 group.
         """
-        group_hook_lambdas = self._group_hook_lambdas
         group_hook_memory_cleanup = self._group_hook_memory_cleanup
         subsampling_ggn = self._subsampling_ggn
         verbose = self._verbose
         batch_size = self._batch_size
         gammas = self._gammas
+        lambdas = self._lambdas
 
         def group_hook(self, accumulation, group):
             """Compute Gram space directions. Evaluate directional derivatives.
@@ -269,7 +269,23 @@ class DirectionalDerivativesComputation:
             if verbose:
                 print(f"Group {group_id}: Store 'gammas'")
 
-            group_hook_lambdas(accumulation, group)
+            C_dir, N_dir = gram_mat.shape[:2]
+
+            V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
+
+            if subsampling_ggn is not None:
+                V_n_T_V = V_n_T_V[:, subsampling_ggn, :]
+
+            # compensate scale of V_n
+            V_n_T_V *= math.sqrt(N_dir)
+
+            V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, evecs)
+
+            lambdas[group_id] = (V_n_T_V_e_d**2).sum(0) / evals
+
+            if verbose:
+                print(f"Group {group_id}: Store 'lambdas'")
+
             group_hook_memory_cleanup(accumulation, group)
 
         return group_hook
@@ -376,42 +392,6 @@ class DirectionalDerivativesComputation:
         return tensors
 
     # group hooks
-
-    def _group_hook_lambdas(self, accumulation, group):
-        """Evaluate and store second-order directional derivatives ``λ[n, d]``.
-
-        Sets the following entries under the id of ``group``:
-
-        - In ``self._lambdas``: Second-order directional derivatives.
-
-        Args:
-            accumulation (dict): Dictionary with accumulated scalar products.
-            group (dict): Parameter group of a ``torch.optim.Optimizer``.
-        """
-        group_id = id(group)
-
-        gram_evals = accumulation["gram_evals"]
-        gram_evecs = accumulation["gram_evecs"]
-        gram_mat = accumulation["gram_mat"]
-
-        C_dir, N_dir = gram_mat.shape[:2]
-
-        V_n_T_V = gram_mat.reshape(C_dir, N_dir, C_dir * N_dir)
-
-        if self._subsampling_ggn is not None:
-            V_n_T_V = V_n_T_V[:, self._subsampling_ggn, :]
-
-        # compensate scale of V_n
-        V_n_T_V *= math.sqrt(N_dir)
-
-        V_n_T_V_e_d = torch.einsum("cni,id->cnd", V_n_T_V, gram_evecs)
-
-        lambdas = (V_n_T_V_e_d**2).sum(0) / gram_evals
-
-        self._lambdas[group_id] = lambdas
-
-        if self._verbose:
-            print(f"Group {id(group)}: Store 'lambdas'")
 
     def _group_hook_memory_cleanup(self, accumulation, group):
         """Free up buffers which are not required anymore for a group.
