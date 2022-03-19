@@ -3,11 +3,10 @@
 import math
 from typing import Callable, Dict, List, Optional, Tuple
 
-import torch
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor, einsum
-from torch.nn import Module
+from torch.nn import Module, Parameter
 
 from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
@@ -35,6 +34,9 @@ class DirectionalDerivativesComputation:
         verbose: Optional[bool] = False,
     ):
         """Specify GGN and gradient approximations. Use no approximations by default.
+
+        Note:
+            The loss function must use ``reduction = 'mean'``.
 
         Args:
             subsampling_grad: Indices of samples used for gradient sub-sampling.
@@ -167,13 +169,13 @@ class DirectionalDerivativesComputation:
             param_groups, param_computation, group_hook, accumulate
         )
 
-        def extension_hook(module):
+        def extension_hook(module: Module):
             """Extension hook executed right after BackPACK extensions during backprop.
 
-            Chains together all the required computations.
+            Chains together all the required steps to compute directional derivatives.
 
             Args:
-                module (torch.nn.Module): Layer on which the hook is executed.
+                module: Layer on which the hook is executed.
             """
             if self._verbose:
                 print(f"Extension hook on module {id(module)} {module}")
@@ -187,45 +189,44 @@ class DirectionalDerivativesComputation:
 
         return extension_hook
 
-    def get_param_computation(self):
+    def get_param_computation(
+        self,
+    ) -> Callable[[ParameterGroupsHook, Parameter], Dict[str, Tensor]]:
         """Set up the ``param_computation`` function of the ``ParameterGroupsHook``.
 
         Returns:
-            function: Function that can be bound to a ``ParameterGroupsHook`` instance.
-                Performs an action on the accumulated results over parameters for a
-                group.
+            Function that can be bound to a ``ParameterGroupsHook`` instance. Computes
+            the per-parameter scalar products required for the directional derivatives.
         """
         savefield_ggn = self._savefield_ggn
         savefield_grad = self._savefield_grad
-        subsampling_ggn = self._subsampling_ggn
-        subsampling_grad = self._subsampling_grad
         verbose = self._verbose
 
-        def param_computation(self: ParameterGroupsHook, param: Tensor):
-            """Compute dot products for a parameter used in directional derivatives.
+        def param_computation(
+            self: ParameterGroupsHook, param: Tensor
+        ) -> Dict[str, Tensor]:
+            """Compute directional derivative dot products for the parameter.
 
             Args:
                 self: Group hook to which this function will be bound.
                 param: Parameter of a neural net.
 
             Returns:
-                dict: Dictionary with results of the different dot products. Has key
-                    ``"V_t_g_n"``.
+                Dictionary containing the dot products ``"V_t_g_n"`` & ``"V_t_V"``.
             """
-            V, g = DirectionalDerivativesComputation._get_subsampled_tensors(
-                param,
-                start_dims=(2, 1),
-                savefields=(savefield_ggn, savefield_grad),
-                subsamplings=(subsampling_ggn, subsampling_grad),
-            )
+            V = getattr(param, savefield_ggn)
+            g = getattr(param, savefield_grad)
 
             if verbose:
-                print(f"Param {id(param)}: Compute 'V_t_V' and 'V_t_g_n'")
+                print(f"Param {id(param)}: Compute V_t_V and V_t_g_n")
 
             result = {
                 "V_t_V": partial_contract(V, V, start_dims=(2, 2)),
                 "V_t_g_n": partial_contract(V, g, start_dims=(2, 1)),
             }
+
+            if verbose:
+                print(f"Param {id(param)}: Delete {savefield_ggn} and {savefield_grad}")
 
             DirectionalDerivativesComputation._delete_savefield(param, savefield_ggn)
             DirectionalDerivativesComputation._delete_savefield(param, savefield_grad)
@@ -234,27 +235,29 @@ class DirectionalDerivativesComputation:
 
         return param_computation
 
-    def get_group_hook(self):
+    def get_group_hook(
+        self,
+    ) -> Callable[[ParameterGroupsHook, Dict[str, Tensor], Dict], None]:
         """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
 
         Returns:
-            function: Function that can be bound to a ``ParameterGroupsHook`` instance.
-                Performs an action on the accumulated results over parameters for a
-                group.
+            Function that can be bound to a ``ParameterGroupsHook`` instance. Computes
+            the directional derivatives for a group.
         """
         verbose = self._verbose
         batch_size = self._batch_size
         gammas = self._gammas
         lambdas = self._lambdas
 
-        def group_hook(self, accumulation, group):
-            """Compute Gram space directions. Evaluate directional derivatives.
+        def group_hook(
+            self: ParameterGroupsHook, accumulation: Dict[str, Tensor], group: Dict
+        ):
+            """Compute Gram space directions. Evaluate & store directional derivatives.
 
             Args:
-                self (ParameterGroupsHook): Group hook to which this function will be
-                    bound.
-                accumulation (dict): Accumulated dot products.
-                group (dict): Parameter group of a ``torch.optim.Optimizer``.
+                self: Group hook to which this function will be bound.
+                accumulation: Accumulated dot products.
+                group: Parameter group of a ``torch.optim.Optimizer``.
             """
             group_id = id(group)
             N = batch_size.pop(group_id)
@@ -294,104 +297,52 @@ class DirectionalDerivativesComputation:
 
         return group_hook
 
-    def get_accumulate(self):
+    def get_accumulate(
+        self,
+    ) -> Callable[
+        [ParameterGroupsHook, Dict[str, Tensor], Dict[str, Tensor]], Dict[str, Tensor]
+    ]:
         """Set up the ``accumulate`` function of the ``ParameterGroupsHook``.
 
         Returns:
-            function: Function that can be bound to a ``ParameterGroupsHook`` instance.
-                Accumulates the parameter computations.
+            Function that can be bound to a ``ParameterGroupsHook`` instance.
+            Accumulates a group's parameter computation dot products.
         """
         verbose = self._verbose
 
-        def accumulate(self, existing, update):
-            """Update existing results with computation result of a parameter.
+        def accumulate(
+            self: ParameterGroupsHook,
+            existing: Dict[str, Tensor],
+            update: Dict[str, Tensor],
+        ) -> Dict[str, Tensor]:
+            """Accumulate per-parameter directional derivative dot products.
 
             Args:
-                self (ParameterGroupsHook): Group hook to which this function will be
-                    bound.
-                existing (dict): Dictionary containing the different accumulated scalar
-                    products. Must have same keys as ``update``.
-                update (dict): Dictionary containing the different scalar products for
-                    a parameter.
+                self: Group hook to which this function will be bound.
+                existing: Dictionary containing the so far accumulated scalar products.
+                update: Dictionary containing the scalar product updates.
 
             Returns:
-                dict: Updated scalar products.
-
-            Raises:
-                ValueError: If the two inputs don't have the same keys.
-                ValueError: If the two values associated to a key have different type.
-                NotImplementedError: If the rule to accumulate a data type is missing.
+                Updated scalar products.
             """
-            same_keys = set(existing.keys()) == set(update.keys())
-            if not same_keys:
-                raise ValueError("Cached and new results have different keys.")
-
             for key in existing.keys():
-                current, new = existing[key], update[key]
-
-                same_type = type(current) is type(new)
-                if not same_type:
-                    raise ValueError(f"Value for key '{key}' have different types.")
-
-                if isinstance(current, torch.Tensor):
-                    current.add_(new)
-                elif current is None:
-                    pass
-                else:
-                    raise NotImplementedError(f"No rule for {type(current)}")
-
-                existing[key] = current
-
                 if verbose:
-                    print(f"Accumulate group entry '{key}'")
+                    print(f"Accumulate dot product {key}")
+                existing[key].add_(update[key])
 
             return existing
 
         return accumulate
 
     @staticmethod
-    def _delete_savefield(param, savefield, verbose=False):
+    def _delete_savefield(
+        param: Tensor, savefield: str, verbose: Optional[bool] = False
+    ):
+        """Delete attribute of a parameter."""
         if verbose:
             print(f"Param {id(param)}: Delete '{savefield}'")
 
         delattr(param, savefield)
-
-    @staticmethod
-    def _get_subsampled_tensors(param, start_dims, savefields, subsamplings):
-        """Fetch the scalar product inputs and apply sub-sampling if necessary.
-
-        Args:
-            param (torch.Tensor): Parameter of a neural net.
-            savefields ([str, str]): List containing the attribute names under which
-                the processed tensors are stored inside a parameter.
-            start_dims ([int, int]): List holding the dimensions at which the dot
-                product contractions starts.
-            subsamplings([[int], [int]]): Sub-samplings that should be applied to the
-                processed tensors before the scalar product operation. The batch axis
-                is automatically identified as the last before the contracted
-                dimensions. An entry of ``None`` does not apply subsampling. Default:
-                ``(None, None)``
-
-        Returns:
-            [torch.Tensor]: List of sub-sampled inputs for the scalar product.
-        """
-        tensors = []
-
-        for start_dim, savefield, subsampling in zip(
-            start_dims, savefields, subsamplings
-        ):
-            tensor = getattr(param, savefield)
-
-            if subsampling is not None:
-                batch_axis = start_dim - 1
-                select = torch.tensor(
-                    subsampling, dtype=torch.int64, device=tensor.device
-                )
-                tensor = tensor.index_select(batch_axis, select)
-
-            tensors.append(tensor)
-
-        return tensors
 
     @staticmethod
     def _check_param_groups(param_groups: List[Dict]):
