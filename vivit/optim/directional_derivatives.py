@@ -161,7 +161,9 @@ class DirectionalDerivativesComputation:
             param_groups, self._batch_size, verbose=self._verbose
         )
 
-        param_computation = self.get_param_computation()
+        param_computation = lambda hook, param: self._param_computation(
+            hook, param, self._savefield_ggn, self._savefield_grad, self._verbose
+        )
         group_hook = self.get_group_hook()
         accumulate = self.get_accumulate()
 
@@ -189,51 +191,47 @@ class DirectionalDerivativesComputation:
 
         return extension_hook
 
-    def get_param_computation(
-        self,
-    ) -> Callable[[ParameterGroupsHook, Parameter], Dict[str, Tensor]]:
-        """Set up the ``param_computation`` function of the ``ParameterGroupsHook``.
+    @staticmethod
+    def _param_computation(
+        hook: ParameterGroupsHook,
+        param: Tensor,
+        savefield_ggn: str,
+        savefield_grad: str,
+        verbose: bool,
+    ) -> Dict[str, Tensor]:
+        """Compute directional derivative dot products for the parameter.
+
+        A partially-evaluated form of this function can be bound to a
+        ``ParameterGroupsHook.param_computation``.
+
+        Args:
+            hook: Group hook to which this function can be bound.
+            param: Parameter of a neural net.
+            savefield_ggn: Name under which the GGN square root is stored in param
+            savefield_grad: Name under which individual gradients are stored in param
+            verbose: Whether to print steps of the computation to command line.
 
         Returns:
-            Function that can be bound to a ``ParameterGroupsHook`` instance. Computes
-            the per-parameter scalar products required for the directional derivatives.
+            Dictionary containing the dot products ``"V_t_g_n"`` & ``"V_t_V"``.
         """
-        savefield_ggn = self._savefield_ggn
-        savefield_grad = self._savefield_grad
-        verbose = self._verbose
+        V = getattr(param, savefield_ggn)
+        g = getattr(param, savefield_grad)
 
-        def param_computation(
-            self: ParameterGroupsHook, param: Tensor
-        ) -> Dict[str, Tensor]:
-            """Compute directional derivative dot products for the parameter.
+        if verbose:
+            print(f"Param {id(param)}: Compute V_t_V and V_t_g_n")
 
-            Args:
-                self: Group hook to which this function will be bound.
-                param: Parameter of a neural net.
+        result = {
+            "V_t_V": partial_contract(V, V, start_dims=(2, 2)),
+            "V_t_g_n": partial_contract(V, g, start_dims=(2, 1)),
+        }
 
-            Returns:
-                Dictionary containing the dot products ``"V_t_g_n"`` & ``"V_t_V"``.
-            """
-            V = getattr(param, savefield_ggn)
-            g = getattr(param, savefield_grad)
+        if verbose:
+            print(f"Param {id(param)}: Delete {savefield_ggn} and {savefield_grad}")
 
-            if verbose:
-                print(f"Param {id(param)}: Compute V_t_V and V_t_g_n")
+        DirectionalDerivativesComputation._delete_savefield(param, savefield_ggn)
+        DirectionalDerivativesComputation._delete_savefield(param, savefield_grad)
 
-            result = {
-                "V_t_V": partial_contract(V, V, start_dims=(2, 2)),
-                "V_t_g_n": partial_contract(V, g, start_dims=(2, 1)),
-            }
-
-            if verbose:
-                print(f"Param {id(param)}: Delete {savefield_ggn} and {savefield_grad}")
-
-            DirectionalDerivativesComputation._delete_savefield(param, savefield_ggn)
-            DirectionalDerivativesComputation._delete_savefield(param, savefield_grad)
-
-            return result
-
-        return param_computation
+        return result
 
     def get_group_hook(
         self,
