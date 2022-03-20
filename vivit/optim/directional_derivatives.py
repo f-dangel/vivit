@@ -173,7 +173,9 @@ class DirectionalDerivativesComputation:
             self._lambdas,
             self._verbose,
         )
-        accumulate = self.get_accumulate()
+        accumulate = lambda hook, existing, update: self._accumulate(
+            hook, existing, update, self._verbose
+        )
 
         hook = ParameterGroupsHook.from_functions(
             param_groups, param_computation, group_hook, accumulate
@@ -301,42 +303,33 @@ class DirectionalDerivativesComputation:
         )
         lambdas[group_id] = (V_n_T_V_e_d**2).sum(0) / evals
 
-    def get_accumulate(
-        self,
-    ) -> Callable[
-        [ParameterGroupsHook, Dict[str, Tensor], Dict[str, Tensor]], Dict[str, Tensor]
-    ]:
-        """Set up the ``accumulate`` function of the ``ParameterGroupsHook``.
+    @staticmethod
+    def _accumulate(
+        hook: ParameterGroupsHook,
+        existing: Dict[str, Tensor],
+        update: Dict[str, Tensor],
+        verbose: bool,
+    ):
+        """Accumulate per-parameter directional derivative dot products.
+
+        A partially-evaluated form of this function can be bound to a
+        ``ParameterGroupsHook.group_hook``.
+
+        Args:
+            hook: Group hook to which this function will be bound.
+            existing: Dictionary containing the so far accumulated scalar products.
+            update: Dictionary containing the scalar product updates.
+            verbose: Whether to print steps of the computation to command line.
 
         Returns:
-            Function that can be bound to a ``ParameterGroupsHook`` instance.
-            Accumulates a group's parameter computation dot products.
+            Updated scalar products.
         """
-        verbose = self._verbose
+        for key in existing.keys():
+            if verbose:
+                print(f"Accumulate dot product {key}")
+            existing[key].add_(update[key])
 
-        def accumulate(
-            self: ParameterGroupsHook,
-            existing: Dict[str, Tensor],
-            update: Dict[str, Tensor],
-        ) -> Dict[str, Tensor]:
-            """Accumulate per-parameter directional derivative dot products.
-
-            Args:
-                self: Group hook to which this function will be bound.
-                existing: Dictionary containing the so far accumulated scalar products.
-                update: Dictionary containing the scalar product updates.
-
-            Returns:
-                Updated scalar products.
-            """
-            for key in existing.keys():
-                if verbose:
-                    print(f"Accumulate dot product {key}")
-                existing[key].add_(update[key])
-
-            return existing
-
-        return accumulate
+        return existing
 
     @staticmethod
     def _delete_savefield(
