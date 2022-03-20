@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor, einsum
-from torch.nn import Module, Parameter
+from torch.nn import Module
 
 from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
@@ -164,7 +164,15 @@ class DirectionalDerivativesComputation:
         param_computation = lambda hook, param: self._param_computation(
             hook, param, self._savefield_ggn, self._savefield_grad, self._verbose
         )
-        group_hook = self.get_group_hook()
+        group_hook = lambda hook, accumulation, group: self._group_hook(
+            hook,
+            accumulation,
+            group,
+            self._batch_size,
+            self._gammas,
+            self._lambdas,
+            self._verbose,
+        )
         accumulate = self.get_accumulate()
 
         hook = ParameterGroupsHook.from_functions(
@@ -233,67 +241,65 @@ class DirectionalDerivativesComputation:
 
         return result
 
-    def get_group_hook(
-        self,
-    ) -> Callable[[ParameterGroupsHook, Dict[str, Tensor], Dict], None]:
-        """Set up the ``group_hook`` function of the ``ParameterGroupsHook``.
+    @staticmethod
+    def _group_hook(
+        hook: ParameterGroupsHook,
+        accumulation: Dict[str, Tensor],
+        group: Dict,
+        batch_size: Dict[int, int],
+        gammas: Dict[int, Tensor],
+        lambdas: Dict[int, Tensor],
+        verbose: bool,
+    ):
+        """Compute Gram space directions. Evaluate & store directional derivatives.
 
-        Returns:
-            Function that can be bound to a ``ParameterGroupsHook`` instance. Computes
-            the directional derivatives for a group.
+        A partially-evaluated form of this function can be bound to a
+        ``ParameterGroupsHook.group_hook``.
+
+        Args:
+            hook: Group hook to which this function will be bound.
+            accumulation: Accumulated dot products.
+            group: Parameter group of a ``torch.optim.Optimizer``.
+            batch_size: Mapping from group id to batch size.
+            gammas: Dictionary to write 1st-order directional derivatives.
+            lambdas: Dictionary to write 2nd-order directional derivatives.
+            verbose: Whether to print steps of the computation to command line.
         """
-        verbose = self._verbose
-        batch_size = self._batch_size
-        gammas = self._gammas
-        lambdas = self._lambdas
+        group_id = id(group)
+        N = batch_size.pop(group_id)
+        N_ggn = accumulation["V_t_V"].shape[1]
 
-        def group_hook(
-            self: ParameterGroupsHook, accumulation: Dict[str, Tensor], group: Dict
-        ):
-            """Compute Gram space directions. Evaluate & store directional derivatives.
+        # compensate scaling from BackPACK and subsampling
+        V_correction = math.sqrt(N / N_ggn)
+        gram_mat = V_correction**2 * accumulation.pop("V_t_V")
 
-            Args:
-                self: Group hook to which this function will be bound.
-                accumulation: Accumulated dot products.
-                group: Parameter group of a ``torch.optim.Optimizer``.
-            """
-            group_id = id(group)
-            N = batch_size.pop(group_id)
-            N_ggn = accumulation["V_t_V"].shape[1]
+        if verbose:
+            print(f"Group {group_id}: Eigen-decompose Gram matrix")
+        evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
 
-            # compensate scaling from BackPACK and subsampling
-            V_correction = math.sqrt(N / N_ggn)
-            gram_mat = V_correction**2 * accumulation.pop("V_t_V")
+        keep = group["criterion"](evals)
+        if verbose:
+            before, after = len(evals), len(keep)
+            print(f"Group {group_id}: Filter directions ({before} → {after})")
+        evals, evecs = evals[keep], evecs[:, keep]
 
-            if verbose:
-                print(f"Group {group_id}: Eigen-decompose Gram matrix")
-            evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+        if verbose:
+            print(f"Group {group_id}: Compute gammas")
+        # compensate scaling from BackPACK and subsampling
+        V_t_g_n = (
+            V_correction
+            * N
+            * accumulation.pop("V_t_g_n").flatten(start_dim=0, end_dim=1)
+        )
+        gammas[group_id] = einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
 
-            keep = group["criterion"](evals)
-            if verbose:
-                before, after = len(evals), len(keep)
-                print(f"Group {group_id}: Filter directions ({before} → {after})")
-            evals, evecs = evals[keep], evecs[:, keep]
-
-            if verbose:
-                print(f"Group {group_id}: Compute gammas")
-            # compensate scaling from BackPACK and subsampling
-            V_t_g_n = (
-                V_correction
-                * N
-                * accumulation.pop("V_t_g_n").flatten(start_dim=0, end_dim=1)
-            )
-            gammas[group_id] = einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
-
-            if verbose:
-                print(f"Group {group_id}: Compute lambdas")
-            # compensate scaling from BackPACK and subsampling
-            V_n_T_V_e_d = math.sqrt(N_ggn) * einsum(
-                "cni,id->cnd", gram_mat.flatten(start_dim=2), evecs
-            )
-            lambdas[group_id] = (V_n_T_V_e_d**2).sum(0) / evals
-
-        return group_hook
+        if verbose:
+            print(f"Group {group_id}: Compute lambdas")
+        # compensate scaling from BackPACK and subsampling
+        V_n_T_V_e_d = math.sqrt(N_ggn) * einsum(
+            "cni,id->cnd", gram_mat.flatten(start_dim=2), evecs
+        )
+        lambdas[group_id] = (V_n_T_V_e_d**2).sum(0) / evals
 
     def get_accumulate(
         self,
