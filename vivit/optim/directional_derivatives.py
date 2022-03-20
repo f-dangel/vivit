@@ -161,10 +161,10 @@ class DirectionalDerivativesComputation:
             param_groups, self._batch_size, verbose=self._verbose
         )
 
-        param_computation = lambda hook, param: self._param_computation(
+        param_computation = lambda hook, param: self._param_computation(  # noqa: E731
             hook, param, self._savefield_ggn, self._savefield_grad, self._verbose
         )
-        group_hook = lambda hook, accumulation, group: self._group_hook(
+        group_hook = lambda hook, accumulation, group: self._group_hook(  # noqa: E731
             hook,
             accumulation,
             group,
@@ -173,7 +173,7 @@ class DirectionalDerivativesComputation:
             self._lambdas,
             self._verbose,
         )
-        accumulate = lambda hook, existing, update: self._accumulate(
+        accumulate = lambda hook, existing, update: self._accumulate(  # noqa: E731
             hook, existing, update, self._verbose
         )
 
@@ -335,7 +335,13 @@ class DirectionalDerivativesComputation:
     def _delete_savefield(
         param: Tensor, savefield: str, verbose: Optional[bool] = False
     ):
-        """Delete attribute of a parameter."""
+        """Delete attribute of a parameter.
+
+        Args:
+            param: Parameter.
+            savefield: Name of removed attribute.
+            verbose: Print action to command line. Default: ``False``.
+        """
         if verbose:
             print(f"Param {id(param)}: Delete '{savefield}'")
 
