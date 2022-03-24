@@ -8,6 +8,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension, normalize
+from vivit.utils import delete_savefield
 from vivit.utils.checks import (
     check_key_exists,
     check_subsampling_unique,
@@ -266,10 +267,7 @@ class EighComputation:
             group_evecs = []
             for param in group["params"]:
                 group_evecs.append(getattr(param, savefield)["V_mat_prod"](gram_evecs))
-
-                if verbose:
-                    print(f"Param {id(param)}: Delete '{savefield}'")
-                delattr(param, savefield)
+                delete_savefield(param, savefield, verbose=verbose)
 
             normalize(group_evecs)
 

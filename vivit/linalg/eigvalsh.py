@@ -7,6 +7,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension
+from vivit.utils import delete_savefield
 from vivit.utils.checks import (
     check_key_exists,
     check_subsampling_unique,
@@ -152,10 +153,7 @@ class EigvalshComputation:
                 Non-square Gram matrix.
             """
             gram_mat = getattr(param, savefield)["gram_mat"]()
-
-            if verbose:
-                print(f"Param {id(param)}: Delete '{savefield}'")
-            delattr(param, savefield)
+            delete_savefield(param, savefield, verbose=verbose)
 
             return gram_mat
 
