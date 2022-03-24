@@ -10,6 +10,7 @@ from torch.nn import Module
 
 from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
+from vivit.utils import delete_savefield
 from vivit.utils.checks import (
     check_key_exists,
     check_subsampling_unique,
@@ -235,11 +236,8 @@ class DirectionalDerivativesComputation:
             "V_t_g_n": partial_contract(V, g, start_dims=(2, 1)),
         }
 
-        if verbose:
-            print(f"Param {id(param)}: Delete {savefield_ggn} and {savefield_grad}")
-
-        DirectionalDerivativesComputation._delete_savefield(param, savefield_ggn)
-        DirectionalDerivativesComputation._delete_savefield(param, savefield_grad)
+        delete_savefield(param, savefield_ggn, verbose=verbose)
+        delete_savefield(param, savefield_grad, verbose=verbose)
 
         return result
 
@@ -330,22 +328,6 @@ class DirectionalDerivativesComputation:
             existing[key].add_(update[key])
 
         return existing
-
-    @staticmethod
-    def _delete_savefield(
-        param: Tensor, savefield: str, verbose: Optional[bool] = False
-    ):
-        """Delete attribute of a parameter.
-
-        Args:
-            param: Parameter.
-            savefield: Name of removed attribute.
-            verbose: Print action to command line. Default: ``False``.
-        """
-        if verbose:
-            print(f"Param {id(param)}: Delete '{savefield}'")
-
-        delattr(param, savefield)
 
     @staticmethod
     def _check_param_groups(param_groups: List[Dict]):
