@@ -231,7 +231,8 @@ t_min = min(t_functorch, t_functorch_implicit, t_vivit)
 print(f"Time [s] functorch:          {t_functorch:.4f} (x{t_functorch / t_min:.2f})")
 print(f"Time [s] vivit:              {t_vivit:.4f} (x{t_vivit/ t_min:.2f})")
 print(
-    f"Time [s] functorch implicit: {t_functorch_implicit:.4f} (x{t_functorch_implicit / t_min:.2f})"
+    f"Time [s] functorch implicit: {t_functorch_implicit:.4f}"
+    + f" (x{t_functorch_implicit / t_min:.2f})"
 )
 
 # %%
