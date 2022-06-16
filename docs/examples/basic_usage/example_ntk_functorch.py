@@ -1,80 +1,86 @@
-"""Relation between the GGN Gram matrix in ViViT and the NTK in functorch.
+r"""In this example we will use ``vivit`` to compute empirical NTK matrices.
 
+The ``functorch`` package allows to do this efficiently. `One of its tutorials
+<https://pytorch.org/functorch/stable/notebooks/neural_tangent_kernels.html>`_
+states that doing this in stock PyTorch is hard ... well, challenge accepted!
+Let's see how ``vivit`` and ``functorch`` compare.
 
-The functorch code was taken from the tutorial at
-https://pytorch.org/functorch/stable/notebooks/neural_tangent_kernels.html.
+Given two data sets :math:`\mathbf{X}_1`, :math:`\mathbf{X}_2`, and a model
+:math:`f_\theta`, the empirical NTK is :math:`\mathbf{J}_\theta
+f_\theta(\mathbf{X}_1) [\mathbf{J}_\theta f_\theta(\mathbf{X}_2)]^{\top}`.
 
-It challenges the reader: 'good luck trying to write an efficient version of
-the above using stock PyTorch.' Challenge accepted
+``vivit`` can compute the GGN Gram matrix :math:`[\mathbf{J}_\theta
+f_\theta(\mathbf{X}) \sqrt{\mathbf{H}}] [\mathbf{J}_\theta f_\theta(\mathbf{X})
+\sqrt{\mathbf{H}}]^\top` on a data set :math:`\mathbf{X}` where
+:math:`\sqrt{\mathbf{H}}` is the matrix square root of the loss Hessian w.r.t.
+the model's prediction.
 
-——–
+For ``MSELoss`` we have :math:`\sqrt{\mathbf{H}} = 2 \mathbf{I}` and therefore
+we can compute :math:`[\mathbf{J}_\theta f_\theta (\mathbf{X}) \sqrt{2}
+\mathbf{I}] [\mathbf{J}_\theta f_\theta (\mathbf{X}) \sqrt{2} \mathbf{I}]^\top
+= \mathbf{J}_\theta f_\theta(\mathbf{X}) [\mathbf{J}_\theta
+f_\theta(\mathbf{X})]^{\top}`. If we stack :math:`\mathbf{X}_1` and
+:math:`\mathbf{X}_2` into a data set :math:`\mathbf{X}`, a submatrix of the Gram matrix
+is proportional to the empirical NTK!
 
-Given two data sets x1, x2, and a model f, the NTK is Jf(x1) [Jf(x2)]ᵀ.
-
-In ViViT we compute the GGN Gram matrix on a data set x via  [Jf(x) √H] [Jf(x) √H]ᵀ
-where √H is the matrix square root of the loss Hessian w.r.t. the model.
-
-The connection between these two is that for MSELoss we have √H = √2 I and
-therefore we can compute [Jf(x) √2 I] [Jf(x) √2 I]ᵀ = 2 Jf(x) [Jf(x)]ᵀ, which
-is proportional to the NTK!
+Let's get the imports out of our way.
 """
 
 import time
 
-import torch
-import torch.nn as nn
 from backpack import backpack, extend
 from functorch import jacrev, jvp, make_functional, vjp, vmap
+from torch import allclose, cat, einsum, eye, manual_seed, randn, stack, zeros_like
+from torch.nn import Conv2d, Flatten, Linear, MSELoss, ReLU, Sequential
 
 from vivit.extensions.secondorder.vivit import ViViTGGNExact
 
 device = "cpu"
+manual_seed(0)
+
+# %%
+# Setup
+# -----
+#
+# We will use the same CNN as the ``functorch`` tutorial and create the data
+# sets :math:`\mathbf{X}_1`, :math:`\mathbf{X}_2`.
 
 
 def CNN():
     """Same as in the functorch tutorial. Sequential for compatibility with BackPACK."""
-    return nn.Sequential(
-        nn.Conv2d(3, 32, (3, 3)),
-        nn.ReLU(),
-        nn.Conv2d(32, 32, (3, 3)),
-        nn.ReLU(),
-        nn.Conv2d(32, 32, (3, 3)),
-        nn.Flatten(),
-        nn.Linear(21632, 10),
+    return Sequential(
+        Conv2d(3, 32, (3, 3)),
+        ReLU(),
+        Conv2d(32, 32, (3, 3)),
+        ReLU(),
+        Conv2d(32, 32, (3, 3)),
+        Flatten(),
+        Linear(21632, 10),
     )
 
 
-# class CNN(nn.Module):
-#     def __init__(self):
-#         super(CNN, self).__init__()
-#         self.conv1 =
-#         self.conv2 =
-#         self.conv3 =
-#         self.fc =
-
-#     def forward(self, x):
-#         x = self.conv1(x)
-#         x = x.relu()
-#         x = self.conv2(x)
-#         x = x.relu()
-#         x = self.conv3(x)
-#         x = x.flatten(1)
-#         x = self.fc(x)
-#         return x
-
-
-x_train = torch.randn(20, 3, 32, 32, device=device)
-x_test = torch.randn(5, 3, 32, 32, device=device)
+x_train = randn(20, 3, 32, 32, device=device)
+x_test = randn(5, 3, 32, 32, device=device)
 
 net = CNN().to(device)
+
+# %%
+# NTK with functorch
+# ------------------
+#
+# The functorch tutorial provides two different methods to compute the
+# empirical NTK. We just copy them over here.
+
 fnet, params = make_functional(net)
 
 
 def fnet_single(params, x):
+    """From the functorch tutorial."""
     return fnet(params, x.unsqueeze(0)).squeeze(0)
 
 
-def empirical_ntk(fnet_single, params, x1, x2):
+def empirical_ntk_functorch(fnet_single, params, x1, x2):
+    """From the functorch tutorial."""
     # Compute J(x1)
     jac1 = vmap(jacrev(fnet_single), (None, 0))(params, x1)
     jac1 = [j.flatten(2) for j in jac1]
@@ -84,14 +90,14 @@ def empirical_ntk(fnet_single, params, x1, x2):
     jac2 = [j.flatten(2) for j in jac2]
 
     # Compute J(x1) @ J(x2).T
-    result = torch.stack(
-        [torch.einsum("Naf,Mbf->NMab", j1, j2) for j1, j2 in zip(jac1, jac2)]
-    )
+    result = stack([einsum("Naf,Mbf->NMab", j1, j2) for j1, j2 in zip(jac1, jac2)])
     result = result.sum(0)
     return result
 
 
-def empirical_ntk_implicit(func, params, x1, x2):
+def empirical_ntk_implicit_functorch(func, params, x1, x2):
+    """From the functorch tutorial."""
+
     def get_ntk(x1, x2):
         def func_x1(params):
             return func(params, x1)
@@ -110,9 +116,9 @@ def empirical_ntk_implicit(func, params, x1, x2):
             return jvps
 
         # Here's our identity matrix
-        basis = torch.eye(
-            output.numel(), dtype=output.dtype, device=output.device
-        ).view(output.numel(), -1)
+        basis = eye(output.numel(), dtype=output.dtype, device=output.device).view(
+            output.numel(), -1
+        )
         return vmap(get_ntk_slice)(basis)
 
     # get_ntk(x1, x2) computes the NTK for a single data point x1, x2
@@ -122,37 +128,26 @@ def empirical_ntk_implicit(func, params, x1, x2):
     return vmap(vmap(get_ntk, (None, 0)), (0, None))(x1, x2)
 
 
-result = empirical_ntk(fnet_single, params, x_train, x_train)
-print(result.shape)
+# %%
+# Let's compute an NTK matrix:
 
-# BackPACK & ViViT
+ntk_functorch = empirical_ntk_functorch(fnet_single, params, x_train, x_train)
 
-net = extend(net)
-loss_func = extend(nn.MSELoss(reduction="sum"))
-
-with backpack(ViViTGGNExact()):
-    output = net(x_train)
-    y = torch.zeros_like(output)  # anything, won't affect NTK
-    loss = loss_func(output, y)
-    loss.backward()
-
-# for p in net.parameters():
-#     print(p.vivit_ggn_exact)
-
-# The Hessian of MSE is 2I, hence we need to divide by 2
-gram = 0.5 * sum(p.vivit_ggn_exact["gram_mat"]() for p in net.parameters())
-print(gram.shape)
-
-gram_reordered = torch.einsum("cndm->nmcd", gram)
-print(gram_reordered.shape)
-
-print(result[0, 0, 0, 0])
-print(gram_reordered[0, 0, 0, 0])
-
-print(torch.allclose(result, gram_reordered, atol=1e-6))
+# %%
+# NTK with ViViT
+# --------------
+#
+# As outlined above, to compute the NTK with ``vivit``, we need to stack the
+# two data sets, feed them through the network and an ``MSELoss`` function, then
+# compute the GGN Gram matrix during backpropagation. The latter is done by
+# ``vivit``'s ``ViViTGGNExact`` extension, which gives access to the per-layer
+# Gram matrix. We have to accumulate the Gram matrices over layers. To do that,
+# we use the following hook:
 
 
-class Hook:
+class AccumulateGramHook:
+    """Accumulate the Gram matrix during backpropagation with BackPACK."""
+
     def __init__(self, delete_buffers):
         self.gram = None
         self.delete_buffers = delete_buffers
@@ -166,45 +161,74 @@ class Hook:
                 del p.vivit_ggn_exact
 
 
-def empirical_ntk_backpack(net, x1, x2, delete_buffers=True):
+# %%
+# The above steps are then implemented by the following function:
+
+
+def empirical_ntk_vivit(net, x1, x2, delete_buffers=True):
+    """Compute the empirical NTK matrix with ViViT."""
     N1 = x1.shape[0]
-    x = torch.cat([x1, x2])
+    X = cat([x1, x2])
 
+    # make BackPACK-ready
     net = extend(net)
-    loss_func = extend(nn.MSELoss(reduction="sum"))
-
-    hook = Hook(delete_buffers)
+    loss_func = extend(MSELoss(reduction="sum"))
+    hook = AccumulateGramHook(delete_buffers)
 
     with backpack(ViViTGGNExact(), extension_hook=hook):
-        output = net(x)
-        y = torch.zeros_like(output)  # anything, won't affect NTK
+        output = net(X)
+        y = zeros_like(output)  # anything, won't affect NTK
         loss = loss_func(output, y)
         loss.backward()
 
-    # The Hessian of MSE is 2I, hence we need to divide by 2
-    gram = hook.gram
-    gram = 0.5 * gram
-    gram_reordered = torch.einsum("cndm->nmcd", gram)
+    gram_reordered = einsum("cndm->nmcd", hook.gram)
 
-    # slice out relevant blocks
-    return gram_reordered[:N1, N1:]
+    # slice out relevant blocks & fix scaling of MSELoss
+    return 0.5 * gram_reordered[:N1, N1:]
 
 
-start_functorch = time.time()
-ntk_functorch = empirical_ntk(fnet_single, params, x_train, x_test)
-end_functorch = time.time()
+# %%
+# Check
+# -----
+#
+# Let's check that the ``vivit`` and ``functorch`` implementations produce the
+# same NTK matrix:
 
-start_functorch_implicit = time.time()
-ntk_functorch = empirical_ntk_implicit(fnet_single, params, x_train, x_test)
-end_functorch_implicit = time.time()
+ntk_functorch = empirical_ntk_functorch(fnet_single, params, x_train, x_test)
+ntk_vivit = empirical_ntk_vivit(net, x_train, x_test)
 
-start_backpack = time.time()
-ntk_backpack = empirical_ntk_backpack(net, x_train, x_test)
-end_backpack = time.time()
-print(ntk_functorch.shape)
-print(ntk_backpack.shape)
+close = allclose(ntk_functorch, ntk_vivit, atol=1e-6)
+if close:
+    print("NTK from functorch and vivit match!")
+else:
+    raise ValueError("NTK from functorch and vivit don't match!")
 
-print(torch.allclose(ntk_functorch, ntk_backpack, atol=1e-6))
-print(f"Time functorch: {end_functorch - start_functorch}")
-print(f"Time backpack: {end_backpack - start_backpack}")
-print(f"Time functorch implicit: {end_functorch_implicit - start_functorch_implicit}")
+
+# %%
+# Runtime
+# -------
+#
+# Last but not least, let's compare the three methods in terms of runtime:
+
+t_functorch = time.time()
+empirical_ntk_functorch(fnet_single, params, x_train, x_test)
+t_functorch = time.time() - t_functorch
+
+t_functorch_implicit = time.time()
+empirical_ntk_implicit_functorch(fnet_single, params, x_train, x_test)
+t_functorch_implicit = time.time() - t_functorch_implicit
+
+t_vivit = time.time()
+empirical_ntk_vivit(net, x_train, x_test)
+t_vivit = time.time() - t_vivit
+
+t_min = min(t_functorch, t_functorch_implicit, t_vivit)
+
+print(f"Time [s] functorch:          {t_functorch:.4f} (x{t_functorch / t_min:.2f})")
+print(f"Time [s] vivit:              {t_vivit:.4f} (x{t_vivit/ t_min:.2f})")
+print(
+    f"Time [s] functorch implicit: {t_functorch_implicit:.4f} (x{t_functorch_implicit / t_min:.2f})"
+)
+
+# %%
+# We can see that ``vivit`` is competitive with ``functorch``.
