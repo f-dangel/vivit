@@ -1,4 +1,8 @@
-r"""In this example we will use ``vivit`` to compute empirical NTK matrices.
+r"""
+Computing empirical NTKs
+========================
+
+In this example we will use ``vivit`` to compute empirical NTK matrices.
 
 The ``functorch`` package allows to do this efficiently. `One of its tutorials
 <https://pytorch.org/functorch/stable/notebooks/neural_tangent_kernels.html>`_
