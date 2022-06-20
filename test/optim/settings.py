@@ -35,7 +35,7 @@ def make_criterion(k, must_exceed=1e-5):
             shift = 0
             candidates = evals
         else:
-            shift = num_evals - 1 - k
+            shift = num_evals - k
             candidates = evals[shift:]
 
         return [idx + shift for idx, ev in enumerate(candidates) if ev > must_exceed]
