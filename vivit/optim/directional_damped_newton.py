@@ -9,7 +9,6 @@ from torch import Tensor, einsum
 from torch.nn import Module
 
 from vivit.linalg.utils import get_hook_store_batch_size
-from vivit.optim.directional_derivatives import DirectionalDerivativesComputation
 from vivit.optim.utils import get_sqrt_ggn_extension
 from vivit.utils import delete_savefield
 from vivit.utils.checks import (
