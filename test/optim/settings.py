@@ -2,6 +2,9 @@
 
 from test.problem import make_test_problems
 from test.settings import SETTINGS
+from typing import Callable
+
+from torch import Tensor, ones
 
 PROBLEMS = make_test_problems(SETTINGS)
 IDS = [problem.make_id() for problem in PROBLEMS]
@@ -99,3 +102,41 @@ def weights_and_biases(parameters, criterion):
 
 PARAM_BLOCKS_FN.append(weights_and_biases)
 PARAM_BLOCKS_FN_IDS.append("param_groups=weights_and_biases")
+
+
+def create_constant_damping(
+    damping: float,
+) -> Callable[[Tensor, Tensor, Tensor, Tensor], Tensor]:
+    """Create a damping function with constant damping along all directions.
+
+    Args:
+        damping: Scale of the constant damping.
+
+    Returns:
+        Function that can be used as ``'damping'`` entry in a parameter group to
+        specify the directional damping.
+    """
+
+    def constant_damping(
+        evals: Tensor, gram_evecs: Tensor, gammas: Tensor, lambdas: Tensor
+    ) -> Tensor:
+        """Constant directional damping function.
+
+        Args:
+            evals: Eigenvalues along the directions. Shape ``[K]``.
+            gram_evecs: Directions in Gram space. Shape ``[NC, K]``
+            gammas: Directional gradients. Shape ``[N, K]``.
+            lambdas: Directional curvatures. Shape ``[N, K]``.
+
+        Returns:
+            Directional dampings of shape ``[K]``.
+        """
+        K = gammas.shape[1]
+        return damping * ones(K, dtype=gammas.dtype, device=gammas.device)
+
+    return constant_damping
+
+
+DAMPING_VALUES = [1.0]
+DAMPINGS = [create_constant_damping(d) for d in DAMPING_VALUES]
+DAMPING_IDS = [f"damping={d}" for d in DAMPING_VALUES]
