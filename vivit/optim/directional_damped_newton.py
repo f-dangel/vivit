@@ -22,7 +22,19 @@ from vivit.utils.hooks import ParameterGroupsHook
 
 
 class DirectionalDampedNewtonComputation:
-    """Interfaces with BackPACK to compute directionally damped Newton steps."""
+    r"""Provides BackPACK extension and hook for directionally damped Newton steps.
+
+    Let :math:`\{e_k\}_{k = 1, \dots, K}` denote the :math:`K` eigenvectors
+    used for the Newton step. Let :math:`\gamma_k, \lambda_k` denote the first-
+    and second-order derivatives along these eigenvectors. The direcionally
+    damped Newton step :math:`s` is
+
+    .. math::
+        s = \sum_{k=1}^K \frac{- \gamma_k}{\lambda_k + \delta_k} e_k
+
+    Here, :math:`\delta_k` is the damping along direction :math:`k`. The exact
+    Newton step has zero damping.
+    """
 
     def __init__(
         self,
@@ -31,6 +43,30 @@ class DirectionalDampedNewtonComputation:
         mc_samples_ggn: Optional[int] = 0,
         verbose: Optional[bool] = False,
     ):
+
+        """Specify GGN and gradient approximations. Use no approximations by default.
+
+        Note:
+            The loss function must use ``reduction = 'mean'``.
+
+        Args:
+            subsampling_grad: Indices of samples used for gradient sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples to compute directional gradients . Defaults to ``None`` (no
+                gradient sub-sampling).
+            subsampling_ggn: Indices of samples used for GGN curvature sub-sampling.
+                ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+                samples to compute directions and directional curvatures. Defaults to
+                ``None`` (no curvature sub-sampling).
+            mc_samples_ggn: If ``0``, don't Monte-Carlo (MC) approximate the GGN
+                (using the same samples to compute the directions and directional
+                curvatures). Otherwise, specifies the number of MC samples used to
+                approximate the backpropagated loss Hessian. Default: ``0`` (no MC
+                approximation).
+            verbose: Turn on verbose mode. If enabled, this will print what's happening
+                during backpropagation to command line (consider it a debugging tool).
+                Defaults to ``False``.
+        """
         check_subsampling_unique(subsampling_grad)
         check_subsampling_unique(subsampling_ggn)
 
@@ -52,12 +88,24 @@ class DirectionalDampedNewtonComputation:
         self._verbose = verbose
 
         # filled via side effects during update step computation, keys are group ids
-        self._gammas = {}
-        self._lambdas = {}
         self._batch_size = {}
         self._newton_steps: Dict[int, Tuple[Tensor]] = {}
 
     def get_result(self, group: Dict) -> Tuple[Tensor]:
+        """Return a damped Newton step in parameter format.
+
+        Must be called after the backward pass.
+
+        Args:
+            group: Parameter group that defines the GGN block.
+
+        Returns:
+            Damped Newton step in parameter format, i.e. the same format as
+            ``group['params']``.
+
+        Raises:
+            KeyError: If there are no results for the group.
+        """
         group_id = id(group)
         try:
             return self._newton_steps[group_id]
@@ -65,6 +113,13 @@ class DirectionalDampedNewtonComputation:
             raise KeyError("No results available for this group") from e
 
     def get_extensions(self) -> List[BackpropExtension]:
+        """Instantiate the BackPACK extensions to compute a damped Newton step.
+
+        Returns:
+            BackPACK extensions, to compute a damped Newton step, that should be
+            extracted and passed to the
+            :py:class:`with backpack(...) <backpack.backpack>` context.
+        """
         return [
             self._extension_cls_grad(subsampling=self._subsampling_grad),
             get_sqrt_ggn_extension(
@@ -73,6 +128,54 @@ class DirectionalDampedNewtonComputation:
         ]
 
     def get_extension_hook(self, param_groups: List[Dict]) -> Callable[[Module], None]:
+        r"""Instantiate BackPACK extension hook to compute a damped Newton step.
+
+        Args:
+            param_groups: Parameter groups list as required by a
+                ``torch.optim.Optimizer``. Specifies the block structure: Each group
+                must specify the ``'params'`` key which contains a list of the
+                parameters that form a GGN block, a ``'criterion'`` entry that
+                specifies a filter function to select eigenvalues as directions along
+                which to compute the damped Newton step, and a ``'damping'`` entry that
+                that contains a function that produces the directional dampings
+                (details below).
+
+                Examples for ``'params'``:
+
+                - ``[{'params': list(p for p in model.parameters()}]`` uses the full
+                  GGN (one block).
+                - ``[{'params': [p]} for p in model.parameters()]`` uses a per-parameter
+                  block-diagonal GGN approximation.
+
+                The function specified under ``'criterion'`` is a
+                ``Callable[[Tensor], List[int]]``. It receives the eigenvalues (in
+                ascending order) and returns the indices of eigenvalues whose
+                eigenvectors should be used as directions for the damped Newon step.
+                Examples:
+
+                - ``{'criterion': lambda evals: [evals.numel() - 1]}`` discards all
+                  directions except for the leading eigenvector.
+                - ``{'criterion': lambda evals: list(range(evals.numel()))}`` computes
+                  damped Newton step along all Gram matrix eigenvectors.
+
+                The function specified under ``'damping'`` is a
+                ``Callable[[Tensor, Tensor, Tensor, Tensor]]``. It receives the
+                eigenvalues, Gram eigenvectors, directional gradients and directional
+                curvatures, and returns a tensor that contains the damping values
+                for all directions. Example:
+
+                - ``{'damping': lambda evals, evecs, gammas, lambdas:
+                  ones_like(evals)}`` corresponds to constant damping
+                  :math:`\delta_k = 1\ \forall k`.
+
+
+        Returns:
+            BackPACK extension hook, to compute damped Newton steps, that should be
+            passed to the :py:class:`with backpack(...) <backpack.backpack>` context.
+            The hook computes a damped Newton step during backpropagation and
+            stores it internally (under ``self._newton_step``).
+
+        """
         self._check_param_groups(param_groups)
         hook_store_batch_size = get_hook_store_batch_size(
             param_groups, self._batch_size, verbose=self._verbose
@@ -190,8 +293,6 @@ class DirectionalDampedNewtonComputation:
         )
 
         # weight in Gram space, then transform to parameter space
-        print(coefficients.shape)
-        print(evecs.shape)
         v = einsum("id,d->i", evecs, coefficients)
 
         # Multiply by VT

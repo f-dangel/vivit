@@ -20,7 +20,8 @@ GGN eigenpairs (eigenvalues + eigenvector)
 .. autoclass:: vivit.DirectionalDerivativesComputation
    :members: __init__, get_extensions, get_extension_hook, get_result
 
-Newton steps
---------------
+Directionally damped Newton steps
+---------------------------------
 
-TODO
+.. autoclass:: vivit.DirectionalDampedNewtonComputation
+   :members: __init__, get_extensions, get_extension_hook, get_result
