@@ -42,7 +42,6 @@ class DirectionalDampedNewtonComputation:
         mc_samples_ggn: Optional[int] = 0,
         verbose: Optional[bool] = False,
     ):
-
         """Specify GGN and gradient approximations. Use no approximations by default.
 
         Note:
@@ -166,7 +165,6 @@ class DirectionalDampedNewtonComputation:
                 - ``{'damping': lambda evals, evecs, gammas, lambdas:
                   ones_like(evals)}`` corresponds to constant damping
                   :math:`\delta_k = 1\ \forall k`.
-
 
         Returns:
             BackPACK extension hook, to compute damped Newton steps, that should be
