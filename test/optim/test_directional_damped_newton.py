@@ -36,8 +36,25 @@ def test_directional_derivatives(
     subsampling_grad: Union[List[int], None],
     subsampling_ggn: Union[List[int], None],
     param_groups_fn: Callable,
-    damping: Callable,
+    damping: Callable[[Tensor, Tensor, Tensor, Tensor], Tensor],
 ):
+    """Compare damped Newton steps.
+
+    Args:
+        problem: Test case.
+        criterion: Filter function to select directions from eigenvalues.
+        subsampling_grad: Indices of samples used for gradient sub-sampling.
+            ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+            samples to compute directional gradients . Defaults to ``None`` (no
+            gradient sub-sampling).
+        subsampling_ggn: Indices of samples used for GGN curvature sub-sampling.
+            ``None`` (equivalent to ``list(range(batch_size))``) uses all mini-batch
+            samples to compute directions and directional curvatures. Defaults to
+            ``None`` (no curvature sub-sampling).
+        param_groups_fn: Function that creates the `param_groups` from the model's
+            named parameters and ``criterion``.
+        damping: Function that generates the directional dampings.
+    """
     problem.set_up()
 
     param_groups = param_groups_fn(problem.model.named_parameters(), criterion)
