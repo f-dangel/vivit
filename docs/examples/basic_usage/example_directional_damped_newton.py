@@ -180,7 +180,8 @@ for param, newton in zip(group["params"], newton_step):
 
 # %%
 #
-# We will flatten and concatenate the Newton step over parameters to simplify the comparison with :py:mod:`torch.autograd`.
+# We will flatten and concatenate the Newton step over parameters to simplify
+# the comparison with :py:mod:`torch.autograd`.
 
 newton_step_flat = parameters_to_vector(newton_step)
 print(newton_step_flat.shape)
