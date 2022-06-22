@@ -1,5 +1,3 @@
-[👷🏗👷🏗 **Coming soon!** Official release with improved docs. Stay tuned. 👷🏗👷🏗]
-
 # <img alt="ViViT" src="./docs/rtd/assets/vivit_logo.svg" height="90"> ViViT: Curvature access through the generalized Gauss-Newton's low-rank structure
 
 [![Python
@@ -30,11 +28,9 @@ sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.
  hooks into its backpropagation.
 
 ## Installation
-👷🏗👷🏗 The [PyPI](https://pypi.org/) release is coming soon. 👷🏗👷🏗
 
-For now, you need to install from GitHub via
 ```bash
-pip install vivit-for-pytorch@git+https://github.com/f-dangel/vivit.git#egg=vivit-for-pytorch
+pip install vivit-for-pytorch
 ```
 
 ## Examples
