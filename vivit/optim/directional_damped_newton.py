@@ -69,9 +69,9 @@ class DirectionalDampedNewtonComputation:
             warn_small_eigvals: The ``gamma`` computation and tranformation from Gram
                 into parameter space break down for numerically small eigenvalues close
                 to zero (need to divide by their square root). This variable triggers a
-                user warning when attempting to compute eigenvectors for eigenvalues
-                whose absolute value is smaller. Defaults to ``1e-4``. You can disable
-                the warning by setting it to ``0`` (not recommended).
+                user warning when attempting to compute damped Newton steps for
+                eigenvalues whose absolute value is smaller. Defaults to ``1e-4``.
+                You can disable the warning by setting it to ``0`` (not recommended).
         """
         check_subsampling_unique(subsampling_grad)
         check_subsampling_unique(subsampling_ggn)
