@@ -2,6 +2,7 @@
 
 import math
 from typing import Callable, Dict, List, Optional, Tuple
+from warnings import warn
 
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
@@ -41,6 +42,7 @@ class DirectionalDampedNewtonComputation:
         subsampling_ggn: Optional[List[int]] = None,
         mc_samples_ggn: Optional[int] = 0,
         verbose: Optional[bool] = False,
+        warn_small_eigvals: float = 1e-4,
     ):
         """Specify GGN and gradient approximations. Use no approximations by default.
 
@@ -64,6 +66,12 @@ class DirectionalDampedNewtonComputation:
             verbose: Turn on verbose mode. If enabled, this will print what's happening
                 during backpropagation to command line (consider it a debugging tool).
                 Defaults to ``False``.
+            warn_small_eigvals: The ``gamma`` computation and tranformation from Gram
+                into parameter space break down for numerically small eigenvalues close
+                to zero (need to divide by their square root). This variable triggers a
+                user warning when attempting to compute eigenvectors for eigenvalues
+                whose absolute value is smaller. Defaults to ``1e-4``. You can disable
+                the warning by setting it to ``0`` (not recommended).
         """
         check_subsampling_unique(subsampling_grad)
         check_subsampling_unique(subsampling_ggn)
@@ -84,6 +92,7 @@ class DirectionalDampedNewtonComputation:
         self._subsampling_ggn = subsampling_ggn
 
         self._verbose = verbose
+        self._warn_small_eigvals = warn_small_eigvals
 
         # filled via side effects during update step computation, keys are group ids
         self._batch_size = {}
@@ -189,6 +198,7 @@ class DirectionalDampedNewtonComputation:
             self._savefield_ggn,
             self._newton_steps,
             self._verbose,
+            self._warn_small_eigvals,
         )
         accumulate = lambda hook, existing, update: self._accumulate(  # noqa: E731
             hook, existing, update, self._verbose
@@ -258,6 +268,7 @@ class DirectionalDampedNewtonComputation:
         savefield_ggn: str,
         newton_steps: Dict[int, List[Tensor]],
         verbose: bool,
+        warn_small_eigvals: bool,
     ):
         """Compute damped Newton step for a group and store it in ``newton_steps``.
 
@@ -287,6 +298,8 @@ class DirectionalDampedNewtonComputation:
             newton_steps: Dictionary in which the computed Newton step will be stored
                 under the group's id.
             verbose: Whether to print steps of the computation to command line.
+            warn_small_eigvals: Warn the user that eigenvalues are smalller than
+                specified value.
         """
         group_id = id(group)
         N = batch_size.pop(group_id)
@@ -316,6 +329,16 @@ class DirectionalDampedNewtonComputation:
             * N
             * accumulation.pop("V_t_g_n").flatten(start_dim=0, end_dim=1)
         )
+
+        # warn about numerical instabilities
+        if (evals.abs() < warn_small_eigvals).any():
+            warn(
+                "Some eigenvalues are small. This can lead to numerical instabilities"
+                + " in the directional gradients and the transformation into parameter"
+                + " space because they require division by the eigenvalue square root."
+                + " Maybe use a more restrictive eigenvalue filter criterion."
+            )
+
         gammas = einsum("in,id->nd", V_t_g_n, evecs) / evals.sqrt()
 
         if verbose:
