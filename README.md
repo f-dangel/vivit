@@ -15,7 +15,8 @@ Provided functionality includes computing
   example](https://vivit.readthedocs.io/en/latest/basic_usage/example_eigh.html#computing-ggn-eigenpairs))
 - 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors ([basic
   example](https://vivit.readthedocs.io/en/latest/basic_usage/example_directional_derivatives.html#computing-directional-derivatives-along-ggn-eigenvectors))
-- Newton steps
+- Directionally damped Newton steps ([basic
+  example](https://vivit.readthedocs.io/en/latest/basic_usage/example_directional_damped_newton.html#computing-directionally-damped-newton-steps))
 
 These operations can also further approximate the GGN to reduce cost via
 sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.

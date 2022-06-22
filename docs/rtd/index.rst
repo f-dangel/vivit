@@ -16,12 +16,13 @@ It is designed to be used with `BackPACK
 - GGN eigenpairs (eigenvalues + eigenvector, :ref:`basic example <Computing GGN
   eigenpairs>`)
 
-- 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors :ref:`basic
+- 1ˢᵗ- and 2ⁿᵈ-order directional derivatives along GGN eigenvectors (:ref:`basic
   example <Computing directional derivatives along GGN eigenvectors>`)
 
-- Newton steps
+- Directionally damped Newton steps (:ref:`basic example <Computing
+  directionally damped Newton steps>`)
 
-These operations can also further approximate the GGN to reduce cost via
+These operations can further approximate the GGN to reduce cost via
 sub-sampling, Monte-Carlo approximation, and block-diagonal approximation.
 
 .. toctree::
