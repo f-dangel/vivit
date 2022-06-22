@@ -309,7 +309,7 @@ class DirectionalDerivativesComputation:
         if (evals.abs() < warn_small_eigvals).any():
             warn(
                 "Some eigenvalues are small. This can lead to numerical instabilities"
-                + " in the directional gradiens because they require division by the"
+                + " in the directional gradients because they require division by the"
                 + " eigenvalue square root."
                 + " Maybe use a more restrictive eigenvalue filter criterion."
             )
