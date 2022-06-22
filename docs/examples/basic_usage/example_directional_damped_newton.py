@@ -216,7 +216,7 @@ evals, evecs = evals[keep], evecs[:, keep]
 # This is sufficient to form the damped Newton step
 #
 # .. math::
-#    s = \sum_{k=1}^K \frac{\gamma_k}{\lambda_k + \delta} e_k
+#    s = \sum_{k=1}^K \frac{-\gamma_k}{\lambda_k + \delta} e_k
 #
 # with constant damping :math:`\delta = 1`.
 
