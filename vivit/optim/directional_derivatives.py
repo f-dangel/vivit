@@ -61,7 +61,7 @@ class DirectionalDerivativesComputation:
             warn_small_eigvals: The ``gamma`` computation breaks down for numerically
                 small eigenvalues close to zero (we need to divide by their square
                 root). This variable triggers a user warning when attempting to compute
-                directional gradient for eigenvalues whose absolute value is smaller.
+                directional gradients for eigenvalues whose absolute value is smaller.
                 Defaults to ``1e-4``. You can disable the warning by setting it to ``0``
                 (not recommended).
         """
