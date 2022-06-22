@@ -2,7 +2,10 @@
 Computing directionally damped Newton steps
 ===========================================
 
-TODO
+In this example we demonstrate how to use ViViT's
+:py:class:`DirectionalDampedNewtonComputation
+<vivit.DirectionalDampedNewtonComputation>` to compute directionally damped
+Newton steps with the GGN. We verify the result with :py:mod:`torch.autograd`.
 
 First, the imports.
 """
@@ -13,7 +16,6 @@ from backpack.utils.examples import _autograd_ggn_exact_columns
 from torch import (
     Tensor,
     allclose,
-    cat,
     cuda,
     device,
     einsum,
@@ -76,11 +78,12 @@ loss = loss_function(model(X), y)
 # Specify GGN approximation and directions
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# By default, :py:class:`vivit.DirectionalDampedNewtoComputation` uses the exact GGN.
-# Furthermore, we need to specify the GGN's parameters via a ``param_groups`` argument
-# that might be familiar to you from :py:mod:`torch.optim`. It also contains a filter
-# function that selects the eigenvalues whose eigenvectors will be used as directions
-# for the Newton step.
+# By default, :py:class:`vivit.DirectionalDampedNewtonComputation` uses the
+# exact GGN. Furthermore, we need to specify the GGN's parameters via a
+# ``param_groups`` argument that might be familiar to you from
+# :py:mod:`torch.optim`. It also contains a filter function that selects the
+# eigenvalues whose eigenvectors will be used as directions for the Newton
+# step.
 
 computation = DirectionalDampedNewtonComputation()
 
@@ -99,15 +102,44 @@ def select_top_k(evals: Tensor, k=4) -> List[int]:
 
 
 # %%
+# Specify directional damping
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# Also need a damping function
+# We also need a damping function that provides the damping value for each
+# direction. This function receives the GGNs eigenvalues, Gram matrix
+# eigenvectors, as well as first- and second-order directional derivatives. It
+# returns a one-dimensional tensor that contains the damping values for all
+# directions.
+#
+# This seems overly complicated. But this approach allows for incorporating
+# information about gradient and curvature noise into the damping value.
+#
+# For simplicity, we will use a constant damping of 1 for all
+# directions.
+
+DAMPING = 1.0
 
 
 def constant_damping(
     evals: Tensor, evecs: Tensor, gammas: Tensor, lambdas: Tensor
 ) -> Tensor:
-    return ones_like(evals)
+    """Constant damping along all directions.
 
+    Args:
+        evals: GGN eigenvalues. Shape ``[K]``.
+        evecs: GGN Gram matrix eigenvectors. Shape ``[NC, K]``.
+        gammas: Directional gradients. Shape ``[N, K]``.
+        lambdas: Directional curvatures. Shape ``[N, K]``.
+
+    Returns:
+        Directional dampings. Shape ``[K]``.
+    """
+    return DAMPING * ones_like(evals)
+
+
+# %%
+#
+# Let's put everything together and set up the parameter groups.
 
 group = {
     "params": [p for p in model.parameters() if p.requires_grad],
@@ -122,7 +154,7 @@ param_groups = [group]
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
 # We can now build the BackPACK extensions and extension hook that will compute
-# directional derivatives, pass them to a :py:class:`with backpack
+# the damped Newton step, pass them to a :py:class:`with backpack
 # <backpack.backpack>`, and perform the backward pass.
 
 extensions = computation.get_extensions()
@@ -135,27 +167,44 @@ with backpack(*extensions, extension_hook=extension_hook):
 #
 # This will compute the damped Newton step for each parameter group and store
 # it internally in the :py:class:`vivit.DirectionalDampedNewtonComputation`
-# instance. We can use the parameter group to request them.
+# instance. We can use the parameter group to request it.
 
 newton_step = computation.get_result(group)
+
+# %%
+#
+# It has the same format as the ``group['params']`` entry:
+
+for param, newton in zip(group["params"], newton_step):
+    print(f"Parameter shape:   {param.shape}\nNewton step shape: {newton.shape}\n")
+
+# %%
+#
+# We will flatten and concatenate the Newton step over parameters to simplify the comparison with :py:mod:`torch.autograd`.
+
+newton_step_flat = parameters_to_vector(newton_step)
+print(newton_step_flat.shape)
 
 # %%
 # Verify results
 # ^^^^^^^^^^^^^^
 #
-# To verify the above, let's first compute the gradient and the GGN using
-# :py:mod:`torch.autograd`.
+# Let's compute the damped Newton step with :py:mod:`torch.autograd` and verify
+# it leads to the same result.
+#
+# We need the gradient and the GGN.
 gradient = grad(
     loss_function(model(X), y), [p for p in model.parameters() if p.requires_grad]
 )
-# flatten it into a vector
-gradient = cat([g.flatten() for g in gradient])
+gradient = parameters_to_vector(gradient)
+
 ggn = stack([col for _, col in _autograd_ggn_exact_columns(X, y, model, loss_function)])
 
+print(gradient.shape, ggn.shape)
 
 # %%
 #
-# Next, we need the filtered GGN eigenvectors:
+# Next, eigen-decompose the GGN and filter the relevant eigenpairs:
 
 evals, evecs = ggn.symeig(eigenvectors=True)
 keep = select_top_k(evals)
@@ -163,10 +212,14 @@ evals, evecs = evals[keep], evecs[:, keep]
 
 # %%
 #
-# We can now form the Newton step:
+# This is sufficient to form the damped Newton step
+#
+# .. math::
+#    s = \sum_{k=1}^K \frac{\gamma_k}{\lambda_k + \delta} e_k
+#
+# with constant damping :math:`\delta = 1`.
 
-newton_step_torch = zeros_like(ggn[0])
-print(newton_step_torch.shape)
+newton_step_torch = zeros_like(gradient)
 
 K = evals.numel()
 
@@ -174,20 +227,18 @@ for k in range(K):
     evec = evecs[:, k]
     gamm = einsum("i,i", gradient, evec)
     lamb = evals[k]
-    delta = 1.0
 
-    ns = (-gamm / (lamb + delta)) * evec
-    newton_step_torch = newton_step_torch + ns
+    newton = (-gamm / (lamb + DAMPING)) * evec
+    newton_step_torch += newton
+
+print(newton_step_torch.shape)
 
 # %%
 #
-# Convert into flat format:
+# Both damped Newton steps should be identical.
 
-newton_step = parameters_to_vector(newton_step)
+close = allclose(newton_step_flat, newton_step_torch, rtol=1e-5, atol=1e-7)
+if not close:
+    raise ValueError("Directionally damped Newton steps don't match!")
 
-
-# %%
-# Verify results
-# ^^^^^^^^^^^^^^
-#
-print(allclose(newton_step, newton_step_torch, rtol=1e-5, atol=1e-7))
+print("Directionally damped Newton steps match!")
