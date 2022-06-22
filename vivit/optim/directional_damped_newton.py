@@ -219,6 +219,21 @@ class DirectionalDampedNewtonComputation:
         savefield_grad: str,
         verbose: bool,
     ) -> Dict[str, Tensor]:
+        """Compute dot products for the parameter.
+
+        A partially-evaluated form of this function can be bound to a
+        ``ParameterGroupsHook.param_computation``.
+
+        Args:
+            hook: Group hook to which this function can be bound.
+            param: Parameter of a neural net.
+            savefield_ggn: Name under which the GGN square root is stored in param
+            savefield_grad: Name under which individual gradients are stored in param
+            verbose: Whether to print steps of the computation to command line.
+
+        Returns:
+            Dictionary containing the dot products ``"V_t_g_n"`` & ``"V_t_V"``.
+        """
         V = getattr(param, savefield_ggn)
         g = getattr(param, savefield_grad)
 
@@ -241,9 +256,38 @@ class DirectionalDampedNewtonComputation:
         group: Dict,
         batch_size: Dict[int, int],
         savefield_ggn: str,
-        newton_steps: Dict[int, Tuple[Tensor]],
+        newton_steps: Dict[int, List[Tensor]],
         verbose: bool,
     ):
+        """Compute damped Newton step for a group and store it in ``newton_steps``.
+
+        A partially-evaluated form of this function can be bound to a
+        ``ParameterGroupsHook.group_hook``.
+
+        In detail, the steps are as follows:
+
+        1. Compute the Gram matrix from the ``V_t_V`` dot product, compute its
+           eigendecomposition. Filter the spectrum according to the parameter
+           group's ``'criterion'`` entry.
+        2. Compute the directional gradients (from ``V_t_g_n``) and curvatures (from
+           the Gram matrix and its filtered eigenvectors).
+        3. Compute the directional dampings using the parameter group's ``'damping'``
+           entry.
+        4. Compute the weighting coefficients for the directions. Weight them in Gram
+           space, then transform the Newton step into parameter space by application
+           of ``V``.
+
+        Args:
+            hook: Group hook to which this function will be bound.
+            accumulation: Accumulated dot products.
+            group: Parameter group of a ``torch.optim.Optimizer``.
+            batch_size: Mapping from group id to batch size.
+            savefield_ggn: Attribute under which the GGN square root is stored in a
+                parameter.
+            newton_steps: Dictionary in which the computed Newton step will be stored
+                under the group's id.
+            verbose: Whether to print steps of the computation to command line.
+        """
         group_id = id(group)
         N = batch_size.pop(group_id)
         N_ggn = accumulation["V_t_V"].shape[1]
@@ -265,6 +309,7 @@ class DirectionalDampedNewtonComputation:
 
         if verbose:
             print(f"Group {group_id}: Compute gammas")
+
         # compensate scaling from BackPACK and subsampling
         V_t_g_n = (
             V_correction
@@ -275,6 +320,7 @@ class DirectionalDampedNewtonComputation:
 
         if verbose:
             print(f"Group {group_id}: Compute lambdas")
+
         # compensate scaling from BackPACK and subsampling
         V_n_T_V_e_d = math.sqrt(N_ggn) * einsum(
             "cni,id->cnd", gram_mat.flatten(start_dim=2), evecs
@@ -298,7 +344,7 @@ class DirectionalDampedNewtonComputation:
 
         params = group["params"]
         v = v.reshape(C, N_ggn)
-        VTv = [
+        Vv: List[Tensor] = [
             einsum("cn,cn...->...", v, getattr(param, savefield_ggn))
             for param in params
         ]
@@ -307,7 +353,7 @@ class DirectionalDampedNewtonComputation:
         for param in params:
             delete_savefield(param, savefield_ggn, verbose=verbose)
 
-        newton_steps[group_id] = VTv
+        newton_steps[group_id] = Vv
 
     @staticmethod
     def _accumulate(
@@ -315,7 +361,21 @@ class DirectionalDampedNewtonComputation:
         existing: Dict[str, Tensor],
         update: Dict[str, Tensor],
         verbose: bool,
-    ):
+    ) -> Dict[str, Tensor]:
+        """Accumulate per-parameter directional derivative dot products.
+
+        A partially-evaluated form of this function can be bound to a
+        ``ParameterGroupsHook.group_hook``.
+
+        Args:
+            hook: Group hook to which this function will be bound.
+            existing: Dictionary containing the so far accumulated scalar products.
+            update: Dictionary containing the scalar product updates.
+            verbose: Whether to print steps of the computation to command line.
+
+        Returns:
+            Updated scalar products.
+        """
         for key in existing.keys():
             if verbose:
                 print(f"Accumulate dot product {key}")
