@@ -3,6 +3,7 @@
 from typing import Any, Callable, Dict, List
 
 from backpack.extensions.backprop_extension import BackpropExtension
+import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
 
@@ -218,7 +219,7 @@ class EigvalshComputation:
             if subsampling is not None:
                 gram_mat *= batch_size / len(subsampling)
 
-            gram_evals, _ = gram_mat.symeig(eigenvectors=False)
+            gram_evals, _ = torch.linalg.eigh(gram_mat)
 
             if verbose:
                 print(f"Group {id(group)}: Store 'gram_evals'")
