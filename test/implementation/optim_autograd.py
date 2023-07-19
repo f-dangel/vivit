@@ -29,7 +29,6 @@ class AutogradOptimExtensions(AutogradExtensions):
     def directional_damped_newton(
         self, param_groups, subsampling_grad=None, subsampling_ggn=None
     ):
-
         group_gammas, group_evecs = self.gammas_ggn(
             param_groups,
             ggn_subsampling=subsampling_ggn,

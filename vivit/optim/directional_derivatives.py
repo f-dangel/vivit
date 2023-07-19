@@ -7,6 +7,7 @@ from warnings import warn
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor, einsum
+from torch.linalg import eigh
 from torch.nn import Module
 
 from vivit.linalg.utils import get_hook_store_batch_size
@@ -288,7 +289,7 @@ class DirectionalDerivativesComputation:
 
         if verbose:
             print(f"Group {group_id}: Eigen-decompose Gram matrix")
-        evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+        evals, evecs = eigh(reshape_as_square(gram_mat))
 
         keep = group["criterion"](evals)
         if verbose:

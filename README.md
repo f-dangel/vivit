@@ -1,7 +1,7 @@
 # <img alt="ViViT" src="./docs/rtd/assets/vivit_logo.svg" height="90"> ViViT: Curvature access through the generalized Gauss-Newton's low-rank structure
 
 [![Python
-3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
+3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/release/python-380/)
 ![tests](https://github.com/f-dangel/vivit/actions/workflows/test.yaml/badge.svg)
 
 ViViT is a collection of numerical tricks to efficiently access curvature from
@@ -39,14 +39,15 @@ Basic and advanced demos can be found in the
 [documentation](https://vivit.readthedocs.io/en/latest/basic_usage/index.html).
 
 ## How to cite
-If you are using ViViT, consider citing the [paper](https://arxiv.org/abs/2106.02624)
+If you are using ViViT, consider citing the [paper](https://openreview.net/pdf?id=DzJ7JfPXkE)
 ```
-@misc{dangel2022vivit,
-      title={{ViViT}: Curvature access through the generalized Gauss-Newton's low-rank structure},
-      author={Felix Dangel and Lukas Tatzel and Philipp Hennig},
-      year={2022},
-      eprint={2106.02624},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
+
+@article{dangel2022vivit,
+  title =        {Vi{V}i{T}: Curvature Access Through The Generalized
+                  Gauss-Newton{\textquoteright}s Low-Rank Structure},
+  author =       {Felix Dangel and Lukas Tatzel and Philipp Hennig},
+  journal =      {Transactions on Machine Learning Research (TMLR)},
+  year =         2022,
 }
+
 ```

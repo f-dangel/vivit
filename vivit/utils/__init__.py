@@ -14,6 +14,6 @@ def delete_savefield(param: Tensor, savefield: str, verbose: Optional[bool] = Fa
         verbose: Print action to command line. Default: ``False``.
     """
     if verbose:
-        print(f"Param {id(param)}: Delete '{savefield}'")
+        print(f"Param {id(param)}: Delete {savefield!r}")
 
     delattr(param, savefield)

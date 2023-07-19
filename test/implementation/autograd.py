@@ -5,6 +5,7 @@ import torch
 from backpack.hessianfree.ggnvp import ggn_vector_product, ggn_vector_product_from_plist
 from backpack.utils.convert_parameters import vector_to_parameter_list
 from torch import Tensor, zeros_like
+from torch.linalg import eigh
 from torch.nn import Parameter
 from torch.nn.utils.convert_parameters import parameters_to_vector
 
@@ -247,7 +248,7 @@ class AutogradExtensions(ExtensionsImplementation):
         group_evecs = []
 
         for ggn, group in zip(group_ggn, param_groups):
-            evals, evecs = ggn.symeig(eigenvectors=True)
+            evals, evecs = eigh(ggn)
 
             # select top eigenspace
             criterion = group["criterion"]
