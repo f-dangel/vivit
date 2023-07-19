@@ -6,6 +6,7 @@ from warnings import warn
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor
 from torch.nn import Module, Parameter
+from torch.linalg import eigh
 
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension, normalize
 from vivit.utils import delete_savefield
@@ -245,9 +246,7 @@ class EighComputation:
             if subsampling is not None:
                 gram_mat *= batch_size / len(subsampling)
 
-            gram_evals, gram_evecs = reshape_as_square(gram_mat).symeig(
-                eigenvectors=True
-            )
+            gram_evals, gram_evecs = eigh(reshape_as_square(gram_mat))
 
             keep = group["criterion"](gram_evals)
             gram_evals, gram_evecs = gram_evals[keep], gram_evecs[:, keep]

@@ -1,14 +1,15 @@
 """Eigenvalue decomposition utility functions."""
 
 import torch
+from torch.linalg import eigh
 
 
 def symeig_psd(input, eigenvectors=False, upper=True, shift=0.0, shift_inplace=False):
     """Compute EVals and EVecs of a positive semi-definite symmetric matrix.
 
-    This is a wrapper around ``torch.symeig``. It shifts the input's diagonal to
+    This is a wrapper around ``torch.linalg.eigh``. It shifts the input's diagonal to
     improve its condition number. This avoids convergence problems with
-    ``torch.symeig`` for ill-conditioned positive semi-definite matrices.
+    ``torch.linalg.eigh`` for ill-conditioned positive semi-definite matrices.
 
     Args:
         input (torch.Tensor): 2d symmetric tensor.
@@ -35,7 +36,7 @@ def symeig_psd(input, eigenvectors=False, upper=True, shift=0.0, shift_inplace=F
     input = shift_diag(input, shift, inplace=shift_inplace)
 
     try:
-        evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
+        evals, evecs = eigh(input, UPLO="U")
     except RuntimeError as e:
         raise RuntimeError(f"Tensor contains NaNs: {_has_nans(input)}") from e
 
@@ -77,8 +78,8 @@ def shift_diag(input, shift, inplace=False):
 def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
     """Compute EVals and EVecs of a matrix. Discard pairs with EVal ≈ 0.
 
-    This is a wrapper around ``torch.symeig`` plus filtering of EVal/EVec pairs
-    numerically close to zero. Use ``torch.symeig`` if you want all EVal/Evecs.
+    This is a wrapper around ``torch.lingal.eigh`` plus filtering of EVal/EVec pairs
+    numerically close to zero. Use ``torch.linalg.eigh`` if you want all EVal/Evecs.
 
     Args:
         input (torch.Tensor): 2d symmetric tensor.
@@ -101,7 +102,7 @@ def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
         raise ValueError("Input must be of dimension 2")
 
     try:
-        evals, evecs = input.symeig(eigenvectors=eigenvectors, upper=upper)
+        evals, evecs = eigh(input, UPLO="U")
     except RuntimeError as e:
         raise RuntimeError(f"Tensor contains NaNs: {_has_nans(input)}") from e
 
@@ -111,7 +112,7 @@ def symeig(input, eigenvectors=False, upper=True, atol=1e-7, rtol=1e-5):
 def remove_zero_evals(evals, evecs, atol=1e-7, rtol=1e-5):
     """Remove (EVal, EVec) pairs if EVal ≈ 0.
 
-    ``evals`` and ``evecs`` are assumed to be output of ``torch.symeig``.
+    ``evals`` and ``evecs`` are assumed to be output of ``torch.linalg.eigh``.
 
     Args:
         evals (torch.Tensor): 1d tensor of eigenvalues.
