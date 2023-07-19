@@ -31,10 +31,11 @@ Let's get the imports out of our way.
 """
 
 import time
+from copy import deepcopy
 
 from backpack import backpack, extend
-from functorch import jacrev, jvp, make_functional, vjp, vmap
 from torch import allclose, cat, einsum, eye, manual_seed, randn, stack, zeros_like
+from torch.func import functional_call, jacrev, jvp, vjp, vmap
 from torch.nn import Conv2d, Flatten, Linear, MSELoss, ReLU, Sequential
 
 from vivit.extensions.secondorder.vivit import ViViTGGNExact
@@ -73,25 +74,27 @@ net = CNN().to(device)
 # ------------------
 #
 # The functorch tutorial provides two different methods to compute the
-# empirical NTK. We just copy them over here.
+# empirical NTK. We just copy them over here (Note: As of PyTorch 2,
+# ``functorch`` is built into ``torch`` and we adapt the original tutorial code
+# to use the new API).
 
-fnet, params = make_functional(net)
+params_dict = dict(net.named_parameters())
 
 
-def fnet_single(params, x):
+def fnet_single(params_dict, x):
     """From the functorch tutorial."""
-    return fnet(params, x.unsqueeze(0)).squeeze(0)
+    return functional_call(net, params_dict, x.unsqueeze(0)).squeeze(0)
 
 
-def empirical_ntk_functorch(fnet_single, params, x1, x2):
+def empirical_ntk_functorch(fnet_single, params_dict, x1, x2):
     """From the functorch tutorial."""
     # Compute J(x1)
-    jac1 = vmap(jacrev(fnet_single), (None, 0))(params, x1)
-    jac1 = [j.flatten(2) for j in jac1]
+    jac1 = vmap(jacrev(fnet_single), (None, 0))(params_dict, x1)
+    jac1 = [j.flatten(2) for j in jac1.values()]
 
     # Compute J(x2)
-    jac2 = vmap(jacrev(fnet_single), (None, 0))(params, x2)
-    jac2 = [j.flatten(2) for j in jac2]
+    jac2 = vmap(jacrev(fnet_single), (None, 0))(params_dict, x2)
+    jac2 = [j.flatten(2) for j in jac2.values()]
 
     # Compute J(x1) @ J(x2).T
     result = stack([einsum("Naf,Mbf->NMab", j1, j2) for j1, j2 in zip(jac1, jac2)])
@@ -99,24 +102,24 @@ def empirical_ntk_functorch(fnet_single, params, x1, x2):
     return result
 
 
-def empirical_ntk_implicit_functorch(func, params, x1, x2):
+def empirical_ntk_implicit_functorch(func, params_dict, x1, x2):
     """From the functorch tutorial."""
 
     def get_ntk(x1, x2):
-        def func_x1(params):
-            return func(params, x1)
+        def func_x1(params_dict):
+            return func(params_dict, x1)
 
-        def func_x2(params):
-            return func(params, x2)
+        def func_x2(params_dict):
+            return func(params_dict, x2)
 
-        output, vjp_fn = vjp(func_x1, params)
+        output, vjp_fn = vjp(func_x1, params_dict)
 
         def get_ntk_slice(vec):
             # This computes vec @ J(x2).T
             # `vec` is some unit vector (a single slice of the Identity matrix)
             vjps = vjp_fn(vec)
             # This computes J(X1) @ vjps
-            _, jvps = jvp(func_x2, (params,), vjps)
+            _, jvps = jvp(func_x2, (params_dict,), vjps)
             return jvps
 
         # Here's our identity matrix
@@ -135,7 +138,7 @@ def empirical_ntk_implicit_functorch(func, params, x1, x2):
 # %%
 # Let's compute an NTK matrix:
 
-ntk_functorch = empirical_ntk_functorch(fnet_single, params, x_train, x_train)
+ntk_functorch = empirical_ntk_functorch(fnet_single, params_dict, x_train, x_train)
 
 # %%
 # NTK with ViViT
@@ -198,8 +201,12 @@ def empirical_ntk_vivit(net, x1, x2, delete_buffers=True):
 # Let's check that the ``vivit`` and ``functorch`` implementations produce the
 # same NTK matrix:
 
-ntk_functorch = empirical_ntk_functorch(fnet_single, params, x_train, x_test)
-ntk_vivit = empirical_ntk_vivit(net, x_train, x_test)
+ntk_functorch = empirical_ntk_functorch(fnet_single, params_dict, x_train, x_test)
+
+# NOTE: We need to use an independent copy of the model because ViViT uses
+# hooks which trigger an error in ``functorch's`` ``functional_call``.
+net_copy = deepcopy(net)
+ntk_vivit = empirical_ntk_vivit(net_copy, x_train, x_test)
 
 close = allclose(ntk_functorch, ntk_vivit, atol=1e-6)
 if close:
@@ -215,15 +222,15 @@ else:
 # Last but not least, let's compare the three methods in terms of runtime:
 
 t_functorch = time.time()
-empirical_ntk_functorch(fnet_single, params, x_train, x_test)
+empirical_ntk_functorch(fnet_single, params_dict, x_train, x_test)
 t_functorch = time.time() - t_functorch
 
 t_functorch_implicit = time.time()
-empirical_ntk_implicit_functorch(fnet_single, params, x_train, x_test)
+empirical_ntk_implicit_functorch(fnet_single, params_dict, x_train, x_test)
 t_functorch_implicit = time.time() - t_functorch_implicit
 
 t_vivit = time.time()
-empirical_ntk_vivit(net, x_train, x_test)
+empirical_ntk_vivit(net_copy, x_train, x_test)
 t_vivit = time.time() - t_vivit
 
 t_min = min(t_functorch, t_functorch_implicit, t_vivit)
