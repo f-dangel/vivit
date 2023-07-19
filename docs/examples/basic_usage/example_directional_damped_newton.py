@@ -28,6 +28,7 @@ from torch import (
 from torch.autograd import grad
 from torch.nn import Linear, MSELoss, ReLU, Sequential
 from torch.nn.utils.convert_parameters import parameters_to_vector
+from torch.linalg import eigh
 
 from vivit.optim.directional_damped_newton import DirectionalDampedNewtonComputation
 
@@ -207,7 +208,7 @@ print(gradient.shape, ggn.shape)
 #
 # Next, eigen-decompose the GGN and filter the relevant eigenpairs:
 
-evals, evecs = ggn.symeig(eigenvectors=True)
+evals, evecs = eigh(ggn)
 keep = select_top_k(evals)
 evals, evecs = evals[keep], evecs[:, keep]
 

@@ -8,6 +8,7 @@ from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor, einsum
 from torch.nn import Module
+from torch.linalg import eigh
 
 from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
@@ -312,7 +313,7 @@ class DirectionalDampedNewtonComputation:
 
         if verbose:
             print(f"Group {group_id}: Eigen-decompose Gram matrix")
-        evals, evecs = reshape_as_square(gram_mat).symeig(eigenvectors=True)
+        evals, evecs = eigh(reshape_as_square(gram_mat))
 
         keep = group["criterion"](evals)
         if verbose:

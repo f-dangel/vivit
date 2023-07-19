@@ -4,6 +4,7 @@ import os
 
 import pytest
 import torch
+from torch.linalg import eigh
 
 from vivit.utils.eig import shift_diag, symeig_psd
 
@@ -28,16 +29,16 @@ TENSOR_SYMEIG_UNSTABLE_IDS = ["degenerated_tensor"]
 def test_symeig_psd_stability(tensor):
     """Check improved stability of shifted eigenvalue decomposition for PSD matrix.
 
-    ``torch.symeig`` does not converge for ill-conditioned PSD matrices, while
+    ``torch.linalg.eigh`` does not converge for ill-conditioned PSD matrices, while
     ``symeig_psd`` with non-zero shift does.
 
     Args:
         tensor (torch.Tensor): 2d positive semi-definite tensor.
     """
     with pytest.raises(RuntimeError):
-        _ = tensor.symeig()
+        _ = eigh(tensor)
 
-    # no shift is identical to ``torch.symeig``
+    # no shift is identical to ``torch.linalg.eigh``
     with pytest.raises(RuntimeError):
         _ = symeig_psd(tensor)
 
@@ -79,7 +80,7 @@ INPLACE_IDS = [f"shift_inplace={inplace}" for inplace in INPLACE]
 @pytest.mark.parametrize("shift", SHIFTS, ids=SHIFTS_IDS)
 @pytest.mark.parametrize("tensor", TENSORS_SYMEIG_STABLE, ids=TENSOR_SYMEIG_STABLE_IDS)
 def test_compare_symeig_psd_symeig(tensor, shift, shift_inplace):
-    """Compare spectra of ``torch.symeig`` with ``symeig_psd``.
+    """Compare spectra of ``torch.linalg.eigh`` with ``symeig_psd``.
 
     Args:
         tensor (torch.Tensor): 2d positive semi-definite tensor.
@@ -87,7 +88,7 @@ def test_compare_symeig_psd_symeig(tensor, shift, shift_inplace):
         shift_inplace (bool): Shift the tensor inplace.
     """
     t = tensor.clone()
-    evals, evecs = t.symeig(eigenvectors=True)
+    evals, evecs = eigh(t)
 
     t = tensor.clone()
     psd_evals, psd_evecs = symeig_psd(
