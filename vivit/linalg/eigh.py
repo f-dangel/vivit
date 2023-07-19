@@ -5,8 +5,8 @@ from warnings import warn
 
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor
-from torch.nn import Module, Parameter
 from torch.linalg import eigh
+from torch.nn import Module, Parameter
 
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension, normalize
 from vivit.utils import delete_savefield

@@ -26,9 +26,9 @@ from torch import (
     zeros_like,
 )
 from torch.autograd import grad
+from torch.linalg import eigh
 from torch.nn import Linear, MSELoss, ReLU, Sequential
 from torch.nn.utils.convert_parameters import parameters_to_vector
-from torch.linalg import eigh
 
 from vivit.optim.directional_damped_newton import DirectionalDampedNewtonComputation
 

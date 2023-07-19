@@ -34,7 +34,6 @@ class ViViTGGNLinear(ViViTGGNBaseModule):
         g_out: Tuple[Tensor],
         backproped: Tensor,
     ) -> Dict[str, Callable]:  # noqa: D102
-
         if self.derivatives._get_additional_dims(module):
             return self.weight_additional(ext, module, g_inp, g_out, backproped)
 

@@ -14,7 +14,7 @@ def check_key_exists(param_groups: List[Dict], key: str):
         ValueError: If any group does not specify the key.
     """
     if any(key not in group.keys() for group in param_groups):
-        raise ValueError(f"At least one group is not specifying '{key}'.")
+        raise ValueError(f"At least one group is not specifying {key!r}.")
 
 
 def check_unique_params(param_groups: List[Dict]):

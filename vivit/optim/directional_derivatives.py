@@ -7,8 +7,8 @@ from warnings import warn
 from backpack.extensions import BatchGrad, SqrtGGNExact, SqrtGGNMC
 from backpack.extensions.backprop_extension import BackpropExtension
 from torch import Tensor, einsum
-from torch.nn import Module
 from torch.linalg import eigh
+from torch.nn import Module
 
 from vivit.linalg.utils import get_hook_store_batch_size
 from vivit.optim.utils import get_sqrt_ggn_extension
