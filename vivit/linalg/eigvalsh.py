@@ -3,9 +3,9 @@
 from typing import Any, Callable, Dict, List
 
 from backpack.extensions.backprop_extension import BackpropExtension
-import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
+from torch.linalg import eigh
 
 from vivit.linalg.utils import get_hook_store_batch_size, get_vivit_extension
 from vivit.utils import delete_savefield
@@ -219,7 +219,7 @@ class EigvalshComputation:
             if subsampling is not None:
                 gram_mat *= batch_size / len(subsampling)
 
-            gram_evals, _ = torch.linalg.eigh(gram_mat)
+            gram_evals, _ = eigh(gram_mat)
 
             if verbose:
                 print(f"Group {id(group)}: Store 'gram_evals'")
